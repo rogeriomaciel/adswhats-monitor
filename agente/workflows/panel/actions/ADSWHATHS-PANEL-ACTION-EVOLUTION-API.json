@@ -1,0 +1,291 @@
+{
+  "name": "ADSWHATHS-PANEL-ACTION-EVOLUTION-API",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        0
+      ],
+      "id": "evo-action-start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, nome, whatsapp_loja, config_json FROM lojas WHERE id = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.body.loja_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -480,
+        0
+      ],
+      "id": "evo-get-loja",
+      "name": "Buscar Loja",
+      "credentials": {
+        "postgres": {
+          "id": "U8N2JqlE7H4EOEg6",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const startItem = $('Start').first().json || {};\nconst triggerData = startItem.body || startItem.payload || startItem || {};\nconst configs = startItem.configs || triggerData.configs || {};\nconst loja = $input.item.json || {};\nconst evoConfig = loja.config_json?.evolutionapi || {};\n\nconst defaultEvolutionKey = (configs.evolution_api_key || '').trim();\nconst defaultEvolutionUrl = (configs.evolution_api_url || 'https://evolution.rogeriomaciel.com.br').replace(/\\/+$/, '');\n\nlet instanceName = (evoConfig.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = `loja-${loja.id}`;\n}\n\nconst apikey = (evoConfig.apikey || '').trim() || defaultEvolutionKey;\nlet apiUrl = (evoConfig.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl || apiUrl.includes('api.evolution.com.br')) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nconst evolutionAction = (triggerData.evolutionAction || 'STATUS').toUpperCase();\n\nif (!apiUrl || !instanceName) {\n  return {\n    json: {\n      hasError: true,\n      error: 'Instância ou URL da Evolution API não configurada para esta loja.'\n    }\n  };\n}\n\nlet url = '';\nlet method = 'GET';\n\nif (evolutionAction === 'STATUS') {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n} else if (evolutionAction === 'CONNECT') {\n  url = `${apiUrl}/instance/connect/${instanceName}`;\n} else if (evolutionAction === 'LOGOUT') {\n  url = `${apiUrl}/instance/logout/${instanceName}`;\n  method = 'DELETE';\n} else if (evolutionAction === 'RESTART') {\n  url = `${apiUrl}/instance/restart/${instanceName}`;\n  method = 'POST';\n} else {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n}\n\nreturn {\n  json: {\n    hasError: false,\n    evolutionAction,\n    url,\n    method,\n    apikey,\n    instanceName,\n    loja_id: loja.id\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        0
+      ],
+      "id": "evo-prep-req",
+      "name": "Preparar Requisicao"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasError }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        0
+      ],
+      "id": "evo-if-error",
+      "name": "Tem Erro de Config?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { ok: false, message: $input.item.json.error } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        -100
+      ],
+      "id": "evo-resp-config-error",
+      "name": "Retornar Erro Config"
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        180,
+        100
+      ],
+      "id": "evo-http-req",
+      "name": "Chamar Evolution API",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const res = $input.item.json;\nconst item = Array.isArray(res) ? (res[0] || {}) : res;\nconst loja = $('Buscar Loja').first().json || {};\n\nconst rawOwner = item?.ownerJid || item?.owner || item?.number || item?.instance?.ownerJid || item?.instance?.owner || item?.instance?.number || item?.profile?.id || '';\nconst cleanPhone = rawOwner ? String(rawOwner).split('@')[0].split(':')[0].replace(/\\D/g, '') : '';\nconst formattedPhone = cleanPhone ? (cleanPhone.startsWith('55') ? cleanPhone : ('55' + cleanPhone)) : '';\n\n// Só tenta atualizar o banco se a loja não tiver telefone cadastrado ainda\nconst currentPhone = loja.whatsapp_loja || '';\nconst shouldUpdate = Boolean(formattedPhone && loja.id && !currentPhone);\n\nreturn {\n  json: {\n    ok: true,\n    data: item,\n    ownerPhone: formattedPhone,\n    number: formattedPhone,\n    loja_id: loja.id,\n    shouldUpdate\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        100
+      ],
+      "id": "evo-resp-success",
+      "name": "Formatar Resposta"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.shouldUpdate }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        620,
+        100
+      ],
+      "id": "evo-if-update-phone",
+      "name": "Atualizar Telefone Loja?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE lojas\nSET \n  whatsapp_loja = $1,\n  config_json = jsonb_set(\n    COALESCE(config_json, '{}'::jsonb),\n    '{dadosDaLoja,whatsapp_loja}',\n    to_jsonb($1::text),\n    true\n  ),\n  updated_at = NOW()\nWHERE id = $2 AND (whatsapp_loja IS NULL OR whatsapp_loja = '');\n",
+        "options": {
+          "queryReplacement": "={{ [$json.ownerPhone, $json.loja_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        840,
+        40
+      ],
+      "id": "evo-update-phone-db",
+      "name": "Atualizar Telefone no Banco",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "U8N2JqlE7H4EOEg6",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const original = $('Formatar Resposta').first().json;\nreturn {\n  json: {\n    ok: true,\n    data: original.data,\n    ownerPhone: original.ownerPhone,\n    number: original.ownerPhone\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        100
+      ],
+      "id": "evo-final-resp",
+      "name": "Retorno Final"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Buscar Loja",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Loja": {
+      "main": [
+        [
+          {
+            "node": "Preparar Requisicao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Requisicao": {
+      "main": [
+        [
+          {
+            "node": "Tem Erro de Config?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem Erro de Config?": {
+      "main": [
+        [
+          {
+            "node": "Retornar Erro Config",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chamar Evolution API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chamar Evolution API": {
+      "main": [
+        [
+          {
+            "node": "Formatar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Resposta": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Telefone Loja?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Telefone Loja?": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Telefone no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retorno Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Telefone no Banco": {
+      "main": [
+        [
+          {
+            "node": "Retorno Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

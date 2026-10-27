@@ -1,0 +1,78 @@
+{
+  "name": "ADSWHATHS-PANEL-ACTION-GET-LOJAS",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        0
+      ],
+      "id": "get-lojas-start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  l.connect_token,\n  l.ativo,\n  l.config_json,\n  l.created_at,\n  l.updated_at,\n  COALESCE((SELECT COUNT(*) FROM pessoas p WHERE p.loja_id = l.id), 0)::int AS total_contatos,\n  COALESCE((SELECT COUNT(*) FROM mensagens m WHERE m.loja_id = l.id), 0)::int AS total_mensagens\nFROM lojas l\nORDER BY l.id ASC;\n"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -180,
+        0
+      ],
+      "id": "get-lojas-db",
+      "name": "Consultar Lojas",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-default",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nconst lojas = items.map(item => item.json);\n\nreturn {\n  json: {\n    ok: true,\n    lojas: lojas\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        0
+      ],
+      "id": "get-lojas-format",
+      "name": "Formatar Retorno"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Consultar Lojas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Lojas": {
+      "main": [
+        [
+          {
+            "node": "Formatar Retorno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

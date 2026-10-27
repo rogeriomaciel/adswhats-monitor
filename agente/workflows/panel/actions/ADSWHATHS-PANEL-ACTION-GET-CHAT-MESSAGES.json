@@ -1,0 +1,140 @@
+{
+  "name": "ADSWHATHS-PANEL-ACTION-GET-CHAT-MESSAGES",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -500,
+        0
+      ],
+      "id": "get-chat-start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const payload = $input.item.json.body || {};\nconst pessoaId = payload.pessoa_id ? parseInt(payload.pessoa_id, 10) : null;\nconst lojaId = payload.loja_id ? parseInt(payload.loja_id, 10) : null;\n\nif (!pessoaId) {\n  throw new Error('pessoa_id é obrigatório para carregar mensagens do chat.');\n}\n\nreturn {\n  json: {\n    pessoaId,\n    lojaId\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        0
+      ],
+      "id": "get-chat-prep",
+      "name": "Preparar Parametros"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  p.id,\n  p.loja_id,\n  l.nome AS loja_nome,\n  p.nome,\n  p.whatsapp,\n  p.picture_url,\n  p.status,\n  p.origem,\n  p.ultimo_criativo_id,\n  cr.titulo AS ultimo_criativo_titulo,\n  cr.tema AS ultimo_criativo_tema,\n  cr.ad_id AS ultimo_criativo_ad_id,\n  cr.canal AS ultimo_criativo_canal,\n  p.metadata_json,\n  p.total_mensagens,\n  p.last_message_at,\n  p.created_at\nFROM pessoas p\nJOIN lojas l ON l.id = p.loja_id\nLEFT JOIN criativos cr ON cr.id = p.ultimo_criativo_id\nWHERE p.id = $1\nLIMIT 1;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.pessoaId] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -60,
+        -100
+      ],
+      "id": "get-chat-contact-db",
+      "name": "Consultar Contato",
+      "credentials": {
+        "postgres": {
+          "id": "U8N2JqlE7H4EOEg6",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  m.id,\n  m.loja_id,\n  m.pessoa_id,\n  m.message_id,\n  m.direcao,\n  m.tipo,\n  m.conteudo,\n  m.midia_url,\n  m.status_entrega,\n  m.is_ad,\n  m.criativo_id,\n  cr.ad_id AS criativo_ad_id,\n  cr.titulo AS criativo_titulo,\n  cr.tema AS criativo_tema,\n  cr.canal AS criativo_canal,\n  m.ctwa_clid,\n  m.tempo_resposta_segundos,\n  m.respondida_em,\n  m.respondida_por_mensagem_id,\n  m.metadata_json,\n  m.timestamp_mensagem,\n  m.created_at\nFROM mensagens m\nLEFT JOIN criativos cr ON cr.id = m.criativo_id\nWHERE m.pessoa_id = $1\n  AND ($2::int IS NULL OR m.loja_id = $2::int)\nORDER BY m.created_at ASC;\n",
+        "options": {
+          "queryReplacement": "={{ [$('Preparar Parametros').item.json.pessoaId, $('Preparar Parametros').item.json.lojaId] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        160,
+        0
+      ],
+      "id": "get-chat-msgs-db",
+      "name": "Consultar Mensagens",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-default",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const contato = $('Consultar Contato').first().json || null;\nconst items = $input.all();\nconst mensagens = items.map(item => item.json).filter(m => m.id !== undefined);\n\nreturn {\n  json: {\n    ok: true,\n    contato,\n    mensagens\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        380,
+        0
+      ],
+      "id": "get-chat-format",
+      "name": "Formatar Retorno"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Preparar Parametros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Parametros": {
+      "main": [
+        [
+          {
+            "node": "Consultar Contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Contato": {
+      "main": [
+        [
+          {
+            "node": "Consultar Mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Mensagens": {
+      "main": [
+        [
+          {
+            "node": "Formatar Retorno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

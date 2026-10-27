@@ -1,0 +1,469 @@
+{
+  "name": "ADSWHATHS-PANEL-ACTION-SAVE-LOJA",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        0
+      ],
+      "id": "save-loja-start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const itemJson = $input.item.json || {};\nconst input = itemJson.body || itemJson.payload || itemJson;\nconst configs = itemJson.configs || input.configs || {};\nconst isUpdate = Boolean(input.id);\n\nconst nome = (input.nome || input.dadosDaLoja?.nome || '').trim();\nif (!nome) {\n  throw new Error('O nome da loja é obrigatório.');\n}\n\nconst rawWhatsapp = (input.whatsapp_loja || input.dadosDaLoja?.whatsapp_loja || '').replace(/\\D/g, '');\nconst whatsapp_loja = rawWhatsapp ? (rawWhatsapp.startsWith('55') ? rawWhatsapp : ('55' + rawWhatsapp)) : '';\nconst ativo = input.ativo !== undefined ? input.ativo : true;\n\n// Monta dadosDaLoja\nconst dadosDaLoja = {\n  nome: nome,\n  whatsapp_loja: whatsapp_loja,\n  email: input.dadosDaLoja?.email || '',\n  site: input.dadosDaLoja?.site || '',\n  endereco: input.dadosDaLoja?.endereco || '',\n  linkGoogleMaps: input.dadosDaLoja?.linkGoogleMaps || '',\n  instagram: input.dadosDaLoja?.instagram || '',\n  facebook: input.dadosDaLoja?.facebook || '',\n  horarioDeFuncionamento: input.dadosDaLoja?.horarioDeFuncionamento || {\n    'seg-sex': '08:00 às 18:00',\n    'sab': '08:00 às 12:00',\n    'domingo': 'Fechado'\n  }\n};\n\nconst defaultEvolutionUrl = (configs.evolution_api_url || 'https://evolution.rogeriomaciel.com.br').replace(/\\/+$/, '');\nconst defaultEvolutionKey = (configs.evolution_api_key || '').trim();\nlet defaultWebhookUrl = (configs.evolution_webhook_url || 'https://api-staging.rogeriomaciel.com.br/app/adswhatsinbound').trim();\nif (!defaultWebhookUrl.includes('/app/')) {\n  defaultWebhookUrl = defaultWebhookUrl.replace('.rogeriomaciel.com.br/adswhatsinbound', '.rogeriomaciel.com.br/app/adswhatsinbound');\n}\n\nlet instanceName = (input.evolutionapi?.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = input.id ? `loja-${input.id}` : '';\n}\n\nlet apiUrl = (input.evolutionapi?.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl || apiUrl.includes('api.evolution.com.br')) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nlet apikey = (input.evolutionapi?.apikey || '').trim();\nif (!apikey) {\n  apikey = defaultEvolutionKey;\n}\n\nlet webhookUrl = (input.evolutionapi?.webhookUrl || '').trim();\nif (!webhookUrl || !webhookUrl.includes('/app/')) {\n  webhookUrl = defaultWebhookUrl;\n}\n\nconst evolutionapi = {\n  instanceName,\n  apikey,\n  apiUrl,\n  webhookUrl\n};\n\nconst config_json = {\n  dadosDaLoja,\n  evolutionapi\n};\n\n$input.item.json = {\n  id: input.id || null,\n  isUpdate,\n  nome,\n  whatsapp_loja,\n  ativo,\n  config_json,\n  configs\n};\n\nreturn $input.item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        0
+      ],
+      "id": "save-loja-prep",
+      "name": "Preparar Dados Loja"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isUpdate }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        0
+      ],
+      "id": "save-loja-if-update",
+      "name": "É Atualização?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE lojas\nSET \n  nome = $1,\n  whatsapp_loja = CASE WHEN $2 != '' THEN $2 ELSE whatsapp_loja END,\n  ativo = $3,\n  config_json = $4::jsonb,\n  updated_at = NOW()\nWHERE id = $5\nRETURNING *;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.nome, $json.whatsapp_loja, $json.ativo, JSON.stringify($json.config_json), $json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -40,
+        -140
+      ],
+      "id": "save-loja-update-db",
+      "name": "Atualizar Loja",
+      "credentials": {
+        "postgres": {
+          "id": "U8N2JqlE7H4EOEg6",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO lojas (nome, whatsapp_loja, ativo, config_json, created_at, updated_at)\nVALUES ($1, $2, $3, $4::jsonb, NOW(), NOW())\nRETURNING *;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.nome, $json.whatsapp_loja, $json.ativo, JSON.stringify($json.config_json)] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -40,
+        140
+      ],
+      "id": "save-loja-insert-db",
+      "name": "Inserir Loja",
+      "credentials": {
+        "postgres": {
+          "id": "U8N2JqlE7H4EOEg6",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const loja = $input.item.json;\nconst startItem = $('Start').first().json || {};\nconst configs = startItem.configs || startItem.body?.configs || $('Preparar Dados Loja').first().json.configs || {};\nconst prepItem = $('Preparar Dados Loja').first().json || {};\nconst evoInput = prepItem.config_json?.evolutionapi || loja.config_json?.evolutionapi || {};\n\nconst defaultEvolutionUrl = (configs.evolution_api_url || 'https://evolution.rogeriomaciel.com.br').replace(/\\/+$/, '');\nconst defaultEvolutionKey = (configs.evolution_api_key || '').trim();\nlet defaultWebhookUrl = (configs.evolution_webhook_url || 'https://api-staging.rogeriomaciel.com.br/app/adswhatsinbound').trim();\nif (!defaultWebhookUrl.includes('/app/')) {\n  defaultWebhookUrl = defaultWebhookUrl.replace('.rogeriomaciel.com.br/adswhatsinbound', '.rogeriomaciel.com.br/app/adswhatsinbound');\n}\n\nlet instanceName = (evoInput.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = `loja-${loja.id}`;\n}\n\nlet apiUrl = (evoInput.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl || apiUrl.includes('api.evolution.com.br')) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nlet apikey = (evoInput.apikey || '').trim();\nif (!apikey) {\n  apikey = defaultEvolutionKey;\n}\n\nlet webhookUrl = (evoInput.webhookUrl || '').trim();\nif (!webhookUrl || !webhookUrl.includes('/app/')) {\n  webhookUrl = defaultWebhookUrl;\n}\n\nconst canCheck = Boolean(apiUrl && apikey);\n\n// Geração de token profissional (padrão Evolution API: UUID v4 em maiúsculas de alta entropia)\nconst generateToken = () => {\n  try {\n    const c = typeof crypto !== 'undefined' ? crypto : require('crypto');\n    if (typeof c.randomUUID === 'function') {\n      return c.randomUUID().toUpperCase();\n    }\n    if (typeof c.randomBytes === 'function') {\n      const bytes = c.randomBytes(16);\n      bytes[6] = (bytes[6] & 0x0f) | 0x40;\n      bytes[8] = (bytes[8] & 0x3f) | 0x80;\n      const hex = bytes.toString('hex').toUpperCase();\n      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;\n    }\n  } catch (e) {}\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {\n    const r = (Math.random() * 16) | 0;\n    const v = c === 'x' ? r : (r & 0x3) | 0x8;\n    return v.toString(16).toUpperCase();\n  });\n};\n\nconst rawToken = (evoInput.token || evoInput.instanceToken || '').trim();\nconst isAmateurToken = !rawToken || rawToken.startsWith('token-') || rawToken === 'token' || rawToken === 'undefined' || rawToken === 'null' || rawToken.length < 16;\nconst instanceToken = isAmateurToken ? generateToken() : rawToken;\n\nconst configJson = {\n  ...(loja.config_json || {}),\n  evolutionapi: {\n    instanceName,\n    apikey,\n    token: instanceToken,\n    apiUrl,\n    webhookUrl\n  }\n};\n\nreturn {\n  json: {\n    loja_id: loja.id,\n    instanceName,\n    apiUrl,\n    apikey,\n    webhookUrl,\n    canCheck,\n    config_json: configJson,\n    createPayload: {\n      instanceName,\n      qrcode: true,\n      integration: 'WHATSAPP-BAILEYS',\n      token: instanceToken,\n      webhook: {\n        enabled: Boolean(webhookUrl),\n        url: webhookUrl,\n        byEvents: false,\n        base64: false,\n        events: [\n          'MESSAGES_UPSERT',\n          'CONNECTION_UPDATE'\n        ]\n      }\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ],
+      "id": "save-loja-prep-check",
+      "name": "Preparar Checagem Instância"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.canCheck }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        420,
+        0
+      ],
+      "id": "save-loja-if-can-check",
+      "name": "Pode Conectar na Evolution?"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.apiUrl }}/instance/fetchInstances",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "instanceName",
+              "value": "={{ $json.instanceName }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        140
+      ],
+      "id": "save-loja-http-check",
+      "name": "Consultar Instância na Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const checkRes = $input.item.json;\nconst prep = $('Preparar Checagem Instância').first().json;\n\nlet exists = false;\nif (Array.isArray(checkRes)) {\n  exists = checkRes.length > 0 && Boolean(checkRes[0]?.name || checkRes[0]?.id || checkRes[0]?.instanceName);\n} else if (checkRes?.instance || checkRes?.name || checkRes?.instanceName) {\n  exists = true;\n} else if (checkRes?.status === 200) {\n  exists = true;\n}\n\nreturn {\n  json: {\n    exists,\n    loja_id: prep.loja_id,\n    instanceName: prep.instanceName,\n    apiUrl: prep.apiUrl,\n    apikey: prep.apikey,\n    webhookUrl: prep.webhookUrl,\n    config_json: prep.config_json,\n    createPayload: prep.createPayload\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        140
+      ],
+      "id": "save-loja-eval-exists",
+      "name": "Avaliar se Instância Existe"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.exists }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        140
+      ],
+      "id": "save-loja-if-exists",
+      "name": "Instância Já Existe?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.apiUrl }}/instance/create",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.apikey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.createPayload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        240
+      ],
+      "id": "save-loja-http-create",
+      "name": "Criar Instância na Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Preparar Checagem Instância').first().json.apiUrl }}/webhook/set/{{ $('Preparar Checagem Instância').first().json.instanceName }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Preparar Checagem Instância').first().json.apikey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"enabled\": true,\n  \"url\": \"{{ $('Preparar Checagem Instância').first().json.webhookUrl }}\",\n  \"byEvents\": false,\n  \"base64\": false,\n  \"events\": [\n    \"MESSAGES_UPSERT\",\n    \"CONNECTION_UPDATE\"\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        140
+      ],
+      "id": "save-loja-http-set-webhook",
+      "name": "Configurar Webhook na Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE lojas\nSET config_json = $1::jsonb, updated_at = NOW()\nWHERE id = $2\nRETURNING *;\n",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('Preparar Checagem Instância').first().json.config_json), $('Preparar Checagem Instância').first().json.loja_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1740,
+        140
+      ],
+      "id": "save-loja-update-inst-db",
+      "name": "Atualizar Config Instância no Banco",
+      "credentials": {
+        "postgres": {
+          "id": "U8N2JqlE7H4EOEg6",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const loja = $input.item.json;\nconst instanceName = loja.config_json?.evolutionapi?.instanceName || `loja-${loja.id}`;\n\nreturn {\n  json: {\n    ok: true,\n    message: 'Loja salva e instância verificada com sucesso!',\n    loja: {\n      ...loja,\n      instanceName\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        0
+      ],
+      "id": "save-loja-format-resp",
+      "name": "Formatar Retorno"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Preparar Dados Loja",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Dados Loja": {
+      "main": [
+        [
+          {
+            "node": "É Atualização?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Atualização?": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Loja",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Inserir Loja",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Loja": {
+      "main": [
+        [
+          {
+            "node": "Preparar Checagem Instância",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserir Loja": {
+      "main": [
+        [
+          {
+            "node": "Preparar Checagem Instância",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Checagem Instância": {
+      "main": [
+        [
+          {
+            "node": "Pode Conectar na Evolution?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pode Conectar na Evolution?": {
+      "main": [
+        [
+          {
+            "node": "Consultar Instância na Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Formatar Retorno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Instância na Evolution": {
+      "main": [
+        [
+          {
+            "node": "Avaliar se Instância Existe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avaliar se Instância Existe": {
+      "main": [
+        [
+          {
+            "node": "Instância Já Existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instância Já Existe?": {
+      "main": [
+        [
+          {
+            "node": "Configurar Webhook na Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Criar Instância na Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Instância na Evolution": {
+      "main": [
+        [
+          {
+            "node": "Configurar Webhook na Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configurar Webhook na Evolution": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Config Instância no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Config Instância no Banco": {
+      "main": [
+        [
+          {
+            "node": "Formatar Retorno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}
