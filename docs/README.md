@@ -1,27 +1,26 @@
 # 📚 Documentação — AdsWhats Monitor
 
-Esta pasta reúne os artefatos de planejamento, especificações arquiteturais e decisões técnicas do projeto.
+Esta pasta reúne as especificações técnicas, arquiteturais e de modelo de dados do **AdsWhats Monitor**.
 
 ---
 
 ## 🗂️ Índice de Documentos
 
 1. **[01. Visão Geral do Projeto](file:///rogerio/core/adswhats-monitor/docs/project_overview.md)**
-   - Papéis do Frontend (React) e Backend (n8n).
-   - Mapa arquitetural e **Regra de Ouro** (banco PostgreSQL no Supabase acessado exclusivamente via n8n).
+   - Papéis do Frontend (React SPA) e Backend Gateway (n8n).
+   - Diagrama arquitetural e **Regra de Ouro** (banco Supabase acessado exclusivamente via n8n).
    - Registro de Decisões de Arquitetura (ADRs).
 
-2. **[02. Escopo Simplificado & Mapeamento de Referência](file:///rogerio/core/adswhats-monitor/docs/scope_and_comparison.md)**
-   - Comparativo direto com o projeto `coreauto-insight`.
-   - O que foi herdado (Autenticação, Evolution API, Barramento de Ações n8n).
-   - O que foi removido (Ordens de Serviço, Mecânicos, Comissões, Modo Smart TV).
-   - Telas e módulos essenciais do AdsWhats Monitor.
+2. **[02. Escopo & Funcionalidades](file:///rogerio/core/adswhats-monitor/docs/scope_and_comparison.md)**
+   - Plataforma de monitoramento e auditoria de tráfego WhatsApp (não é CRM).
+   - Atribuição de tráfego pago por mensagem (Meta Click to WhatsApp - CTWA).
+   - Relatórios e métricas por criativo e cálculo de SLA de primeiro atendimento.
+   - Link de conexão pública para lojistas (`/conectar/:token`).
 
 3. **[03. Arquitetura de Gestão e Modelo de Dados](file:///rogerio/core/adswhats-monitor/docs/admin_and_data_model.md)**
-   - Papel de Super Admin / Gestão Multi-loja.
-   - Especificação das tabelas: `usuarios`, `lojas`, `pessoas`, `mensagens`, `webhook_evolution_logs`.
+   - Papel de Super Admin e gestão multilojas com isolamento por `loja_id`.
+   - Especificação das tabelas: `usuarios`, `lojas`, `pessoas`, `mensagens`, `criativos`, `configs`.
    - Fluxo de dados entre Evolution API, n8n e Supabase.
 
-4. **[04. Plano de Execução (Baby Steps)](file:///rogerio/core/adswhats-monitor/docs/plan.md)**
-   - Fases e passos de implementação com checkpoints e validações.
-
+4. **[04. Plano de Execução & Migrações](file:///rogerio/core/adswhats-monitor/docs/plan.md)**
+   - Histórico de fases de implementação e versionamento do banco via migrações SQL.
