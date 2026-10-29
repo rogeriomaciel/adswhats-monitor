@@ -1,0 +1,342 @@
+{
+  "name": "ADSWHATHS-PANEL-ACTION-SAVE-USER",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -920,
+        0
+      ],
+      "id": "save-user-start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const itemJson = $input.item.json || {};\nconst input = itemJson.body || itemJson.payload || itemJson;\nconst authUser = itemJson.user || {};\nconst userRole = String(authUser.role || 'admin').toLowerCase().trim();\n\nif (userRole !== 'admin') {\n  return {\n    json: {\n      valid: false,\n      errorMessage: 'Acesso negado: apenas administradores podem gerenciar usuários.'\n    }\n  };\n}\n\nconst id = input.id ? Number(input.id) : null;\nconst isUpdate = Boolean(id);\nconst currentUserId = Number(authUser.user_id || authUser.id || 0);\n\nconst nome = String(input.nome || '').trim();\nconst email = String(input.email || '').trim().toLowerCase();\nconst whatsapp = String(input.whatsapp || '').replace(/\\D/g, '');\nconst password = String(input.password || '');\nconst role = String(input.role || 'operador').toLowerCase().trim() === 'admin' ? 'admin' : 'operador';\nconst ativo = input.ativo !== undefined ? Boolean(input.ativo) : true;\n\nif (!nome) {\n  return { json: { valid: false, errorMessage: 'O nome do usuário é obrigatório.' } };\n}\n\nif (!email || !email.includes('@')) {\n  return { json: { valid: false, errorMessage: 'Informe um endereço de e-mail válido.' } };\n}\n\nif (!whatsapp || whatsapp.length < 10) {\n  return { json: { valid: false, errorMessage: 'Informe um número de WhatsApp válido com DDD.' } };\n}\n\nif (!isUpdate && password.length < 6) {\n  return { json: { valid: false, errorMessage: 'A senha inicial deve ter pelo menos 6 caracteres.' } };\n}\n\nif (isUpdate && password.length > 0 && password.length < 6) {\n  return { json: { valid: false, errorMessage: 'A nova senha deve ter pelo menos 6 caracteres.' } };\n}\n\nif (isUpdate && currentUserId && id === currentUserId && (!ativo || role !== 'admin')) {\n  return {\n    json: {\n      valid: false,\n      errorMessage: 'Por segurança, você não pode desativar ou remover privilégios de administrador da sua própria conta.'\n    }\n  };\n}\n\nreturn {\n  json: {\n    valid: true,\n    id,\n    isUpdate,\n    nome,\n    email,\n    whatsapp,\n    password,\n    role,\n    ativo\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -700,
+        0
+      ],
+      "id": "save-user-prep",
+      "name": "Preparar e Validar Dados"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.valid }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        0
+      ],
+      "id": "save-user-if-valid",
+      "name": "Dados Válidos?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  json: {\n    ok: false,\n    message: $input.item.json.errorMessage || 'Dados inválidos.'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        160
+      ],
+      "id": "save-user-err-valid",
+      "name": "Retornar Erro Validação"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, email, whatsapp\nFROM usuarios\nWHERE (LOWER(email) = LOWER($1) OR whatsapp = $2)\n  AND ($3::int IS NULL OR id != $3::int)\nLIMIT 1;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.email, $json.whatsapp, $json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -240,
+        -80
+      ],
+      "id": "save-user-check-dup",
+      "name": "Verificar Duplicidade",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const dup = $input.item.json || {};\nconst prep = $('Preparar e Validar Dados').first().json;\n\nif (dup && dup.id) {\n  const sameEmail = String(dup.email || '').toLowerCase() === prep.email;\n  return {\n    json: {\n      hasDuplicate: true,\n      duplicateMessage: sameEmail\n        ? 'Já existe outro usuário cadastrado com este e-mail.'\n        : 'Já existe outro usuário cadastrado com este número de WhatsApp.'\n    }\n  };\n}\n\nreturn {\n  json: {\n    hasDuplicate: false,\n    ...prep\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        -80
+      ],
+      "id": "save-user-eval-dup",
+      "name": "Avaliar Duplicidade"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasDuplicate }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        200,
+        -80
+      ],
+      "id": "save-user-if-dup",
+      "name": "Tem Duplicidade?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  json: {\n    ok: false,\n    message: $input.item.json.duplicateMessage || 'Já existe outro usuário com este e-mail ou WhatsApp.'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -220
+      ],
+      "id": "save-user-err-dup",
+      "name": "Retornar Erro Duplicidade"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isUpdate }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ],
+      "id": "save-user-if-update",
+      "name": "É Atualização?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE usuarios\nSET\n  nome = $1,\n  email = $2,\n  whatsapp = $3,\n  role = $4,\n  ativo = $5,\n  password_hash = CASE\n    WHEN $6 != '' THEN crypt($6, gen_salt('bf'))\n    ELSE password_hash\n  END\nWHERE id = $7\nRETURNING id, nome, email, whatsapp, avatar_url, role, ativo;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.nome, $json.email, $json.whatsapp, $json.role, $json.ativo, $json.password, $json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        680,
+        -100
+      ],
+      "id": "save-user-update-db",
+      "name": "Atualizar Usuario",
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO usuarios (nome, email, whatsapp, password_hash, role, ativo)\nVALUES ($1, $2, $3, crypt($4, gen_salt('bf')), $5, $6)\nRETURNING id, nome, email, whatsapp, avatar_url, role, ativo;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.nome, $json.email, $json.whatsapp, $json.password, $json.role, $json.ativo] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        680,
+        100
+      ],
+      "id": "save-user-insert-db",
+      "name": "Inserir Usuario",
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const usuario = $input.item.json;\nconst isUpdate = $('Preparar e Validar Dados').first().json.isUpdate;\n\nreturn {\n  json: {\n    ok: true,\n    message: isUpdate ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!',\n    usuario\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        0
+      ],
+      "id": "save-user-format-resp",
+      "name": "Formatar Retorno Sucesso"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Preparar e Validar Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar e Validar Dados": {
+      "main": [
+        [
+          {
+            "node": "Dados Válidos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados Válidos?": {
+      "main": [
+        [
+          {
+            "node": "Verificar Duplicidade",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retornar Erro Validação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Duplicidade": {
+      "main": [
+        [
+          {
+            "node": "Avaliar Duplicidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avaliar Duplicidade": {
+      "main": [
+        [
+          {
+            "node": "Tem Duplicidade?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem Duplicidade?": {
+      "main": [
+        [
+          {
+            "node": "Retornar Erro Duplicidade",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É Atualização?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Atualização?": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Usuario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Inserir Usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Usuario": {
+      "main": [
+        [
+          {
+            "node": "Formatar Retorno Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserir Usuario": {
+      "main": [
+        [
+          {
+            "node": "Formatar Retorno Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+

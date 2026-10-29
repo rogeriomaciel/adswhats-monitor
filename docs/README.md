@@ -27,3 +27,4 @@ Esta pasta reúne as especificações técnicas, arquiteturais e de modelo de da
 
 5. **[05. Plano de Execução & Migrações](./plan.md)**
    - Histórico de fases de implementação e versionamento do banco via migrações SQL.
+

@@ -1,0 +1,156 @@
+{
+  "name": "ADSWHATHS-PANEL-ACTION-GET-USERS",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        0
+      ],
+      "id": "get-users-start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const itemJson = $input.item.json || {};\nconst userRole = String(itemJson.user?.role || 'admin').toLowerCase().trim();\n\nreturn {\n  json: {\n    isAdmin: userRole === 'admin'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        0
+      ],
+      "id": "get-users-check-role",
+      "name": "Validar Admin"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isAdmin }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -180,
+        0
+      ],
+      "id": "get-users-if-admin",
+      "name": "É Admin?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  u.id,\n  u.nome,\n  u.email,\n  u.whatsapp,\n  u.avatar_url,\n  COALESCE(u.role, 'operador') AS role,\n  COALESCE(u.ativo, true) AS ativo,\n  (to_jsonb(u)->>'created_at') AS created_at,\n  (to_jsonb(u)->>'ultimo_login') AS ultimo_login\nFROM usuarios u\nORDER BY u.id ASC;\n"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        60,
+        -80
+      ],
+      "id": "get-users-db",
+      "name": "Consultar Usuarios",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all() || [];\nconst usuarios = items\n  .map(item => item.json)\n  .filter(u => u && u.id);\n\nreturn {\n  json: {\n    ok: true,\n    usuarios\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        -80
+      ],
+      "id": "get-users-format",
+      "name": "Formatar Retorno"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  json: {\n    ok: false,\n    message: 'Acesso negado: apenas administradores podem listar usuários.'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        100
+      ],
+      "id": "get-users-denied",
+      "name": "Acesso Negado"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Validar Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Admin": {
+      "main": [
+        [
+          {
+            "node": "É Admin?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Admin?": {
+      "main": [
+        [
+          {
+            "node": "Consultar Usuarios",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acesso Negado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Usuarios": {
+      "main": [
+        [
+          {
+            "node": "Formatar Retorno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+

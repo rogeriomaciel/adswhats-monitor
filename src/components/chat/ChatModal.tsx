@@ -77,7 +77,10 @@ export function ChatModal({ isOpen, onClose, contato }: ChatModalProps) {
     queryKey: ["chat", contato?.id],
     queryFn: () => getChatMessages(contato!.id, contato!.loja_id),
     enabled: isOpen && Boolean(contato?.id),
-    refetchInterval: isOpen ? 5000 : false, // Live update every 5 seconds
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: isOpen && Boolean(contato?.id) ? 5000 : false, // Atualiza apenas enquanto este modal estiver aberto e visível
+    refetchIntervalInBackground: false,
   });
 
   const mensagens = data?.mensagens || [];

@@ -53,4 +53,5 @@ flowchart LR
 | **Banco de Dados** | PostgreSQL no Supabase | ✅ Definido | Acessado **exclusivamente** pelo n8n. Nenhuma chave do banco no frontend. |
 | **Acesso a Dados** | Gateway 100% via n8n | ✅ Definido | O React consome e envia dados unicamente para endpoints de Webhooks do n8n. |
 | **Integração WhatsApp** | Evolution API | ✅ Definido | Webhooks de mensagens recebidas e controle de instâncias. |
-| **Autenticação** | E-mail ou WhatsApp + Senha / Token Bearer | ✅ Definido | Validação via `crypt` e assinatura JWT com chave em `configs`. |
+| **Autenticação & RBAC** | E-mail ou WhatsApp + Senha / Token Bearer | ✅ Definido | Validação via `crypt`, assinatura JWT com chave em `configs` e controle de permissão `admin` vs `operador`. |
+| **Cache & Polling UI** | React Query (`staleTime: 5m`) + Debounce | ✅ Definido | Navegação em memória sem refetch redundante; auto-refresh restrito ao `ChatModal` aberto e limites de tentativas no QR Code. |
