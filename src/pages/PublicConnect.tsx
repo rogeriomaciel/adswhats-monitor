@@ -38,6 +38,31 @@ export default function PublicConnect() {
   const [activeOsTab, setActiveOsTab] = useState<"android" | "iphone">("android");
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollAttemptsRef = useRef<number>(0);
+  const MAX_POLL_ATTEMPTS = 20; // ~80 segundos de leitura antes de pausar
+
+  const stopPolling = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  };
+
+  const startPolling = () => {
+    stopPolling();
+    pollAttemptsRef.current = 0;
+    pollIntervalRef.current = setInterval(() => {
+      if (document.hidden) return;
+      pollAttemptsRef.current += 1;
+      if (pollAttemptsRef.current > MAX_POLL_ATTEMPTS) {
+        stopPolling();
+        setQrCode(null);
+        setQrCodeError("O QR Code expirou por inatividade. Clique em 'Recarregar QR Code' para gerar um novo.");
+        return;
+      }
+      fetchStatus("STATUS", true, false);
+    }, 4000);
+  };
 
   // Função para consultar status ou solicitar conexão
   const fetchStatus = async (
@@ -47,10 +72,14 @@ export default function PublicConnect() {
   ) => {
     if (!token) return;
     if (!silent) setIsRefreshing(true);
-    setQrCodeError(null);
+    if (isInitialOrManual) setQrCodeError(null);
 
     try {
       const res = await callPublicConnect(token, action);
+
+      if (!res.ok) {
+        stopPolling();
+      }
 
       setData((prev) => ({
         ...res,
@@ -65,6 +94,7 @@ export default function PublicConnect() {
       }
 
       if (res.ok && res.state === "open") {
+        stopPolling();
         setQrCode(null);
         if (data?.state !== "open") {
           toast.success("WhatsApp conectado com sucesso!");
@@ -94,24 +124,19 @@ export default function PublicConnect() {
       return;
     }
 
-    // Primeiro faz um CONNECT
+    // Primeiro faz um CONNECT e inicia o polling controlado
     fetchStatus("CONNECT", false, true);
-
-    // Polling a cada 4 segundos apenas checando STATUS
-    pollIntervalRef.current = setInterval(() => {
-      fetchStatus("STATUS", true, false);
-    }, 4000);
+    startPolling();
 
     return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      stopPolling();
     };
   }, [token]);
 
   // Se o estado mudar para 'open', para o polling
   useEffect(() => {
-    if (data?.state === "open" && pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
+    if (data?.state === "open") {
+      stopPolling();
     }
   }, [data?.state]);
 
@@ -119,6 +144,7 @@ export default function PublicConnect() {
     setQrCode(null);
     setQrCodeError(null);
     fetchStatus("RESTART", false, true);
+    startPolling();
   };
 
   return (

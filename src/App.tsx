@@ -8,12 +8,17 @@ import Dashboard from "@/pages/Dashboard";
 import LojasPage from "@/pages/Lojas";
 import ContatosPage from "@/pages/Contatos";
 import CriativosPage from "@/pages/Criativos";
+import UsuariosPage from "@/pages/Usuarios";
 import PublicConnect from "@/pages/PublicConnect";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutos de cache em memória sem re-consultar o n8n ao trocar de tela
+      gcTime: 15 * 60 * 1000,
       refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
       retry: 1,
     },
   },
@@ -56,6 +61,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <ContatosPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/usuarios"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <UsuariosPage />
                 </ProtectedRoute>
               }
             />

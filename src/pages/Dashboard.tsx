@@ -16,11 +16,25 @@ import {
   QrCode,
   Sparkles,
   Phone,
+  LayoutGrid,
+  List,
 } from "lucide-react";
+
+function formatPhone(phone: string) {
+  const p = String(phone || "").replace(/\D/g, "");
+  if (p.startsWith("55") && (p.length === 12 || p.length === 13)) {
+    const ddd = p.substring(2, 4);
+    const prefix = p.length === 13 ? p.substring(4, 9) : p.substring(4, 8);
+    const suffix = p.length === 13 ? p.substring(9) : p.substring(8);
+    return `+55 (${ddd}) ${prefix}-${suffix}`;
+  }
+  return phone;
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
+  const [lojasViewMode, setLojasViewMode] = useState<"table" | "cards">("table");
 
   const {
     data: lojas = [],
@@ -137,7 +151,7 @@ export default function Dashboard() {
 
         {/* Lojas Preview & Quick Actions */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold font-display text-foreground">
                 Lojas Recentes
@@ -146,13 +160,45 @@ export default function Dashboard() {
                 Status das instâncias e volume de contatos
               </p>
             </div>
-            <Link
-              to="/lojas"
-              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
-            >
-              Ver todas ({totalLojas})
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+
+            <div className="flex items-center gap-3 self-end sm:self-auto">
+              <div className="flex items-center gap-1 bg-card border border-border rounded-xl p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setLojasViewMode("table")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                    lojasViewMode === "table"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  title="Visualização em Tabela"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>Tabela</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLojasViewMode("cards")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                    lojasViewMode === "cards"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  title="Visualização em Cards"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Cards</span>
+                </button>
+              </div>
+
+              <Link
+                to="/lojas"
+                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+              >
+                Ver todas ({totalLojas})
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
 
           {isLoading ? (
@@ -172,9 +218,86 @@ export default function Dashboard() {
                 Cadastrar Loja Agora
               </Link>
             </div>
+          ) : lojasViewMode === "table" ? (
+            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-muted/40 border-b border-border text-muted-foreground font-semibold">
+                    <tr>
+                      <th className="py-3 px-4">Loja</th>
+                      <th className="py-3 px-4">WhatsApp Oficial</th>
+                      <th className="py-3 px-4 text-center">Contatos</th>
+                      <th className="py-3 px-4 text-center">Mensagens</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-right">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {lojas.map((loja) => (
+                      <tr key={loja.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                              {loja.nome?.substring(0, 2).toUpperCase() || "LJ"}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-foreground">{loja.nome}</span>
+                              <span className="text-[10px] font-mono text-muted-foreground">#{loja.id}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 font-mono">
+                          {loja.whatsapp_loja ? (
+                            <span className="text-foreground">{formatPhone(loja.whatsapp_loja)}</span>
+                          ) : (
+                            <span className="italic text-amber-500/90 dark:text-amber-400 font-sans text-[11px] font-medium">
+                              Aguardando conexão
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
+                          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
+                            {loja.total_contatos || 0}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
+                          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
+                            {loja.total_mensagens || 0}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                              loja.ativo
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                : "bg-muted text-muted-foreground border-border"
+                            }`}
+                          >
+                            {loja.ativo ? "Ativa" : "Inativa"}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4 text-right">
+                          <Link
+                            to="/lojas"
+                            className="py-1.5 px-3 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center gap-1.5 transition-colors"
+                          >
+                            Abrir Configurações
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {lojas.slice(0, 3).map((loja) => (
+              {lojas.map((loja) => (
                 <div
                   key={loja.id}
                   className="p-5 rounded-2xl bg-card border border-border shadow-sm flex flex-col justify-between space-y-4"

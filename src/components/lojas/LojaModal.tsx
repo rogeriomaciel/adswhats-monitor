@@ -110,8 +110,10 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
       }
       setWebhookUrl(initialWebhook);
 
-      // Auto check status if loja already exists
-      checkStatus(loja.id);
+      // Só consulta status na Evolution API automaticamente se abrir direto na aba "evolution"
+      if (initialTab === "evolution") {
+        checkStatus(loja.id);
+      }
     } else {
       // Nova Loja defaults
       setNome("");
@@ -135,7 +137,14 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
-  }, [isOpen, loja, initialTab]);
+  }, [isOpen, loja?.id, initialTab]);
+
+  // Se o usuário clicar manualmente na aba "evolution" e o status ainda não foi consultado, consulta 1 vez
+  useEffect(() => {
+    if (isOpen && activeTab === "evolution" && loja?.id && evoStatus === "unknown" && !isEvoLoading) {
+      checkStatus(loja.id);
+    }
+  }, [isOpen, activeTab, loja?.id]);
 
   const checkStatus = async (lojaId?: number) => {
     const id = lojaId || loja?.id;
@@ -192,9 +201,22 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
         setEvoStatus("connecting");
         toast.info(forceRestart ? "Novo QR Code gerado! Aponte o WhatsApp." : "Aponte o WhatsApp no seu celular para o QR Code.");
 
-        // Start Polling every 3.5s to see if connected
+        // Polling limitado a 18 tentativas (~60s) e pausado se a aba do navegador estiver oculta
         if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        let attempts = 0;
+        const maxAttempts = 18;
         pollTimerRef.current = window.setInterval(async () => {
+          if (document.hidden) return;
+          attempts += 1;
+          if (attempts > maxAttempts) {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+            setEvoQrCode(null);
+            setEvoStatus("close");
+            toast.info("Tempo de leitura do QR Code expirou. Clique em Conectar WhatsApp para gerar um novo.");
+            return;
+          }
+
           const pollRes = await callEvolutionApi(loja.id, "STATUS");
           if (pollRes.ok && pollRes.state === "open") {
             setEvoStatus("open");
@@ -204,6 +226,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
               setWhatsappLoja(pollRes.number);
             }
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
             toast.success("WhatsApp conectado com sucesso!");
             onSaved();
           }

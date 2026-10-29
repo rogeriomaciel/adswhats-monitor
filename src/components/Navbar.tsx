@@ -1,16 +1,18 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, Building2, LayoutDashboard, MessageSquare, Sparkles } from "lucide-react";
+import { LogOut, Building2, LayoutDashboard, MessageSquare, Sparkles, Shield } from "lucide-react";
 
 export function Navbar() {
   const { user, signOut } = useAuth();
   const location = useLocation();
+  const isAdmin = (user?.role || "admin").toLowerCase() === "admin";
 
   const navItems = [
     { label: "Dashboard", href: "/", icon: LayoutDashboard },
     { label: "Criativos & SLA", href: "/criativos", icon: Sparkles },
     { label: "Lojas", href: "/lojas", icon: Building2 },
     { label: "Contatos", href: "/contatos", icon: MessageSquare },
+    ...(isAdmin ? [{ label: "Usuários", href: "/usuarios", icon: Shield }] : []),
   ];
 
   return (

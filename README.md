@@ -136,6 +136,8 @@ Acionados internamente pelo `ADSWHATHS - PANEL` através do payload `{ "action":
 - `GET-CONTACTS`: Lista leads filtrados por `loja_id`, origem (`organico`, `instagram_ads`, `facebook_ads`) e busca textual.
 - `GET-CHAT-MESSAGES`: Retorna o histórico paginado de mensagens de um contato específico com dados do anúncio vinculado.
 - `GET-METRICS-SLA`: Calcula os indicadores de SLA médio, volume de mensagens de anúncios e ranking de criativos por período.
+- `GET-USERS`: Lista todos os usuários da empresa gestora (exclusivo para perfil `admin`).
+- `SAVE-USER`: Cria, atualiza, redefine senha (`pgcrypto`) e ativa/desativa usuários (exclusivo para perfil `admin`, com trava contra auto-desativação).
 
 ---
 
@@ -175,10 +177,10 @@ adswhats-monitor/
 │   ├── git_push_automacao.sh       # Automação de branch, commit e abertura de PR
 │   └── git_clean_workspace.sh      # Limpeza pós-merge
 └── src/
-    ├── components/                 # UI modular (MetricsSLASection, LojaModal, ChatModal, Navbar)
+    ├── components/                 # UI modular (MetricsSLASection, LojaModal, UsuarioModal, ChatModal, Navbar)
     ├── contexts/                   # AuthContext (Sessão JWT e proteção de rotas)
     ├── lib/                        # Cliente HTTP centralizado (api.ts)
-    ├── pages/                      # Telas: Dashboard, Criativos, Lojas, Contatos, PublicConnect, Login
+    ├── pages/                      # Telas: Dashboard, Criativos, Lojas, Contatos, Usuarios, PublicConnect, Login
     └── types/                      # Contratos estritos em TypeScript
 ```
 

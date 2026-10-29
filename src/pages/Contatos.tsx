@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getContatos, getLojas } from "@/lib/api";
 import { Pessoa } from "@/types/contato";
@@ -15,6 +15,8 @@ import {
   Loader2,
   Calendar,
   Filter,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 
 function formatPhone(phone: string) {
@@ -65,7 +67,17 @@ export default function ContatosPage() {
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
   const [selectedOrigem, setSelectedOrigem] = useState<string>("todos");
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [activeChatContact, setActiveChatContact] = useState<Pessoa | null>(null);
+
+  // Debounce de 400ms para evitar disparar 1 requisição ao n8n por tecla digitada
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
 
   // Buscar lista de lojas para o filtro
   const { data: lojas = [] } = useQuery({
@@ -80,12 +92,12 @@ export default function ContatosPage() {
     isRefetching,
     refetch,
   } = useQuery({
-    queryKey: ["contatos", selectedLojaId, selectedOrigem, searchTerm],
+    queryKey: ["contatos", selectedLojaId, selectedOrigem, debouncedSearch],
     queryFn: () =>
       getContatos({
         loja_id: selectedLojaId,
         origem: selectedOrigem,
-        search: searchTerm,
+        search: debouncedSearch,
       }),
   });
 
@@ -212,6 +224,36 @@ export default function ContatosPage() {
               </select>
             </div>
           </div>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 bg-background border border-border rounded-xl p-1 shrink-0 self-end md:self-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                viewMode === "table"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+              title="Visualização em Tabela"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>Tabela</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("cards")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                viewMode === "cards"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+              title="Visualização em Cards"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Cards</span>
+            </button>
+          </div>
         </div>
 
         {/* Contacts Table / Cards */}
@@ -228,7 +270,7 @@ export default function ContatosPage() {
               Quando os clientes enviarem mensagens pelo WhatsApp das lojas, os contatos e conversas aparecerão aqui automaticamente.
             </p>
           </div>
-        ) : (
+        ) : viewMode === "table" ? (
           <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -348,15 +390,111 @@ export default function ContatosPage() {
               </table>
             </div>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {contatos.map((contato) => {
+              const isInstagram = contato.origem === "instagram_ads";
+              const isFacebook = contato.origem === "facebook_ads";
+              const isAd = isInstagram || isFacebook;
+
+              return (
+                <div
+                  key={contato.id}
+                  className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div className="space-y-4">
+                    {/* Top: Contact + Store */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                          {contato.nome?.substring(0, 2).toUpperCase() || "WA"}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-bold text-foreground font-display truncate">
+                            {contato.nome || "Contato WhatsApp"}
+                          </h3>
+                          <p className="text-xs font-mono text-muted-foreground mt-0.5">
+                            {formatPhone(contato.whatsapp)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-muted text-[10px] text-foreground font-medium shrink-0">
+                        <Store className="w-3 h-3 text-muted-foreground" />
+                        {contato.loja_nome || `Loja #${contato.loja_id}`}
+                      </span>
+                    </div>
+
+                    {/* Origin / Ad Creative */}
+                    <div className="pt-3 border-t border-border/60 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        {isAd ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20">
+                            <Sparkles className="w-2.5 h-2.5" />
+                            {contato.ultimo_criativo_canal?.toUpperCase() || (isInstagram ? "INSTAGRAM" : "FACEBOOK")} ADS
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+                            Orgânico
+                          </span>
+                        )}
+
+                        {contato.tempo_medio_resposta_segundos && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-[10px] font-semibold">
+                            SLA: {formatSLA(contato.tempo_medio_resposta_segundos)}
+                          </span>
+                        )}
+                      </div>
+
+                      {isAd && (contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo) && (
+                        <p className="text-[11px] font-medium text-foreground truncate" title={contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo}>
+                          {contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo}
+                        </p>
+                      )}
+
+                      {/* Last Message Box */}
+                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50 space-y-1">
+                        <p className="text-xs text-foreground line-clamp-2">
+                          {contato.ultima_mensagem || "Nenhuma mensagem gravada"}
+                        </p>
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-2.5 h-2.5" />
+                            {formatDateRelative(contato.last_message_at)}
+                          </span>
+                          <span className="font-mono font-semibold">
+                            {contato.total_mensagens || 0} msg(s)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Footer */}
+                  <div className="pt-4 mt-4 border-t border-border flex items-center justify-end">
+                    <button
+                      onClick={() => setActiveChatContact(contato)}
+                      className="w-full py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Ver Histórico de Chat
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </main>
 
-      {/* Chat History Viewer Modal */}
-      <ChatModal
-        isOpen={Boolean(activeChatContact)}
-        onClose={() => setActiveChatContact(null)}
-        contato={activeChatContact}
-      />
+      {/* Chat History Viewer Modal — montado apenas quando há um chat aberto */}
+      {activeChatContact && (
+        <ChatModal
+          isOpen={true}
+          onClose={() => setActiveChatContact(null)}
+          contato={activeChatContact}
+        />
+      )}
     </div>
   );
 }

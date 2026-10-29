@@ -50,3 +50,9 @@ Este plano guia o desenvolvimento do AdsWhats Monitor em etapas incrementais e s
   - [ADSWHATHS-PANEL-ACTION-GET-CHAT-MESSAGES.json](../agente/workflows/panel/actions/ADSWHATHS-PANEL-ACTION-GET-CHAT-MESSAGES.json)
   - [ADSWHATHS-PANEL-ACTION-GET-METRICS-SLA.json](../agente/workflows/panel/actions/ADSWHATHS-PANEL-ACTION-GET-METRICS-SLA.json)
   - [ADSWHATHS - PUBLIC-CONNECT.json](../agente/workflows/core/ADSWHATHS%20-%20PUBLIC-CONNECT.json)
+
+### 🔹 Fase 7: Gestão de Usuários (RBAC), Alternância Tabela/Cards e Otimização de Polling
+- [x] **Passo 7.1:** Módulo completo de Gestão de Usuários ([src/pages/Usuarios.tsx](../src/pages/Usuarios.tsx) e [src/components/usuarios/UsuarioModal.tsx](../src/components/usuarios/UsuarioModal.tsx)) exclusivo para perfil `admin`, com criação, edição, redefinição de senha (`pgcrypto`) e ativação/desativação.
+- [x] **Passo 7.2:** Sub-workflows n8n [ADSWHATHS-PANEL-ACTION-GET-USERS.json](../agente/workflows/panel/actions/ADSWHATHS-PANEL-ACTION-GET-USERS.json) e [ADSWHATHS-PANEL-ACTION-SAVE-USER.json](../agente/workflows/panel/actions/ADSWHATHS-PANEL-ACTION-SAVE-USER.json) com validação de role `admin` no backend e proteção contra auto-bloqueio.
+- [x] **Passo 7.3:** Alternância de visualização **Tabela | Cards** (padrão em Tabela) no Dashboard, Lojas, Contatos e Usuários.
+- [x] **Passo 7.4:** Otimização global do `QueryClient` (`staleTime: 5 min`), debounce de `400ms` na busca de contatos, auto-refresh restrito exclusivamente ao `ChatModal` aberto e trava de tentativas no polling de QR Code.

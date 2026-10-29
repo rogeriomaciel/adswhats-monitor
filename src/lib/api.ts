@@ -1,4 +1,4 @@
-import { LoginPayload, LoginResult } from "@/types/auth";
+import { LoginPayload, LoginResult, User, SaveUserPayload } from "@/types/auth";
 import { Loja, DadosDaLoja, EvolutionConfig, EvolutionApiResult, EvolutionState } from "@/types/loja";
 import { Pessoa, ChatResponse, MetricasSLAResponse } from "@/types/contato";
 
@@ -168,6 +168,22 @@ export async function getMetricsSLA(params: {
   dias?: number;
 } = {}): Promise<MetricasSLAResponse> {
   return await callPanelAction<MetricasSLAResponse>("GET-METRICS-SLA", params);
+}
+
+/** Buscar todos os usuários do painel (apenas Admin) */
+export async function getUsuarios(): Promise<User[]> {
+  const res = await callPanelAction<{ ok: boolean; usuarios?: User[]; message?: string }>("GET-USERS", {});
+  if (!res.ok) {
+    throw new Error(res.message || "Não foi possível carregar os usuários.");
+  }
+  return res.usuarios || [];
+}
+
+/** Criar ou atualizar usuário do painel (apenas Admin) */
+export async function saveUsuario(
+  userData: SaveUserPayload
+): Promise<{ ok: boolean; usuario?: User; message?: string }> {
+  return await callPanelAction("SAVE-USER", userData);
 }
 
 export interface PublicConnectResult {
