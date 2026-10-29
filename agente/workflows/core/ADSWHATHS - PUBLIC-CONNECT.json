@@ -1,0 +1,460 @@
+{
+  "name": "ADSWHATHS - PUBLIC-CONNECT",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "adswhatsconnect",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1008,
+        0
+      ],
+      "id": "pub-conn-webhook",
+      "name": "POST /adswhatsconnect",
+      "webhookId": "adswhatsconnect"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $input.item.json.body || $input.item.json || {};\nconst token = (body.token || '').trim();\nconst action = (body.action || 'CONNECT').toUpperCase();\n\nconst uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\nif (!token || !uuidRegex.test(token)) {\n  return {\n    json: {\n      isValid: false,\n      error: 'Token de conexão inválido ou não informado.'\n    }\n  };\n}\n\nreturn {\n  json: {\n    isValid: true,\n    token,\n    action\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -784,
+        0
+      ],
+      "id": "pub-conn-prep-token",
+      "name": "Validar Parametros Iniciais"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isValid }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        0
+      ],
+      "id": "pub-conn-if-token-valid",
+      "name": "Token Valido?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { ok: false, error: $input.item.json.error || 'Token inválido ou não informado.' } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        192
+      ],
+      "id": "pub-conn-fmt-token-err",
+      "name": "Formatar Erro Token"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -336,
+        192
+      ],
+      "id": "pub-conn-resp-token-err",
+      "name": "Responder 400 Token Invalido"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  l.connect_token,\n  l.config_json,\n  (SELECT value FROM public.configs WHERE key = 'evolution_api_url' LIMIT 1) AS config_evo_url,\n  (SELECT value FROM public.configs WHERE key = 'evolution_api_key' LIMIT 1) AS config_evo_key\nFROM public.lojas l\nWHERE l.connect_token = $1::uuid AND l.ativo = true\nLIMIT 1;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.token] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -336,
+        0
+      ],
+      "id": "pub-conn-get-loja",
+      "name": "Buscar Loja por Token",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst rawLoja = items.length > 0 ? items[0].json : null;\nconst req = $('Validar Parametros Iniciais').first().json || {};\n\nif (!rawLoja || !rawLoja.id) {\n  return {\n    json: {\n      found: false,\n      error: 'Link de conexão inválido, expirado ou loja desativada.'\n    }\n  };\n}\n\nconst evoConfig = rawLoja.config_json?.evolutionapi || {};\nconst defaultEvolutionKey = (rawLoja.config_evo_key || '').trim();\nconst defaultEvolutionUrl = (rawLoja.config_evo_url || '').replace(/\\/+$/, '');\n\nlet instanceName = (evoConfig.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = `loja-${rawLoja.id}`;\n}\n\nconst apikey = (evoConfig.apikey || '').trim() || defaultEvolutionKey;\nlet apiUrl = (evoConfig.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nif (!apiUrl || !apikey) {\n  return {\n    json: {\n      found: false,\n      error: 'Serviço de conexão WhatsApp não configurado para esta loja.'\n    }\n  };\n}\n\nconst action = (req.action || 'CONNECT').toUpperCase();\nlet url = '';\nlet method = 'GET';\n\nif (action === 'STATUS') {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n} else if (action === 'RESTART') {\n  url = `${apiUrl}/instance/restart/${instanceName}`;\n  method = 'POST';\n} else {\n  url = `${apiUrl}/instance/connect/${instanceName}`;\n}\n\nreturn {\n  json: {\n    found: true,\n    loja_id: rawLoja.id,\n    loja_nome: rawLoja.nome,\n    whatsapp_loja: rawLoja.whatsapp_loja,\n    instanceName,\n    apiUrl,\n    apikey,\n    action,\n    method,\n    url\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        0
+      ],
+      "id": "pub-conn-eval-loja",
+      "name": "Verificar e Preparar Requisicao Evolution"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.found }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        112,
+        0
+      ],
+      "id": "pub-conn-if-found",
+      "name": "Loja Encontrada?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { ok: false, error: $input.item.json.error || 'Link de conexão inválido, expirado ou loja desativada.' } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        192
+      ],
+      "id": "pub-conn-fmt-loja-err",
+      "name": "Formatar Erro Loja 404"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        320,
+        192
+      ],
+      "id": "pub-conn-resp-loja-err",
+      "name": "Responder 404 Loja Nao Encontrada"
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        320,
+        0
+      ],
+      "id": "pub-conn-call-evo",
+      "name": "Chamar Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const prep = $('Verificar e Preparar Requisicao Evolution').first().json || {};\nconst raw = $input.item.json || {};\nconst item = Array.isArray(raw) ? (raw[0] || {}) : raw;\n\nconst rawState = item?.connectionStatus || item?.instance?.state || item?.instance?.status || item?.status || item?.state || '';\nconst stateStr = String(rawState).toLowerCase().trim();\n\nlet state = 'unknown';\nif (stateStr === 'open' || stateStr === 'connected') {\n  state = 'open';\n} else if (stateStr === 'connecting') {\n  state = 'connecting';\n} else if (stateStr === 'close' || stateStr === 'closed' || stateStr === 'disconnected') {\n  state = 'close';\n}\n\nconst rawOwner = item?.ownerJid || item?.owner || item?.number || item?.instance?.ownerJid || item?.instance?.owner || item?.instance?.number || '';\nconst cleanOwner = rawOwner ? String(rawOwner).split('@')[0].split(':')[0].replace(/\\D/g, '') : '';\nconst owner = cleanOwner ? (cleanOwner.startsWith('55') ? cleanOwner : ('55' + cleanOwner)) : (prep.whatsapp_loja || '');\n\nconst base64 = item?.base64 || item?.qrcode?.base64 || null;\nconst code = item?.code || item?.qrcode?.code || null;\n\nconst shouldUpdatePhone = Boolean(state === 'open' && cleanOwner && !prep.whatsapp_loja);\n\nreturn {\n  json: {\n    ok: true,\n    loja_id: prep.loja_id,\n    loja_nome: prep.loja_nome,\n    state,\n    number: owner || null,\n    base64,\n    code,\n    shouldUpdatePhone,\n    ownerPhone: owner\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        0
+      ],
+      "id": "pub-conn-fmt-result",
+      "name": "Formatar Resultado Seguro"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const item = $input.item.json || {};\nreturn {\n  json: {\n    ok: true,\n    loja_nome: item.loja_nome,\n    state: item.state,\n    number: item.number,\n    base64: item.base64,\n    code: item.code\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        0
+      ],
+      "id": "pub-conn-final-payload",
+      "name": "Payload Publico Final"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        992,
+        0
+      ],
+      "id": "pub-conn-resp-ok",
+      "name": "Responder Sucesso Lojista"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.shouldUpdatePhone }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        768,
+        -176
+      ],
+      "id": "pub-conn-if-update-phone",
+      "name": "Atualizar Telefone se Conectado?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.lojas\nSET whatsapp_loja = $1, updated_at = NOW()\nWHERE id = $2 AND (whatsapp_loja IS NULL OR whatsapp_loja = '');\n",
+        "options": {
+          "queryReplacement": "={{ [$json.ownerPhone, $json.loja_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        992,
+        -176
+      ],
+      "id": "pub-conn-update-phone-db",
+      "name": "Gravar Telefone na Loja",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        -224
+      ],
+      "id": "a42e6784-1791-4766-bc93-2ed66a0d318b",
+      "name": "When clicking ‘Execute workflow’"
+    }
+  ],
+  "connections": {
+    "POST /adswhatsconnect": {
+      "main": [
+        [
+          {
+            "node": "Validar Parametros Iniciais",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Parametros Iniciais": {
+      "main": [
+        [
+          {
+            "node": "Token Valido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Valido?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Loja por Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Formatar Erro Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Erro Token": {
+      "main": [
+        [
+          {
+            "node": "Responder 400 Token Invalido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Loja por Token": {
+      "main": [
+        [
+          {
+            "node": "Verificar e Preparar Requisicao Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar e Preparar Requisicao Evolution": {
+      "main": [
+        [
+          {
+            "node": "Loja Encontrada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loja Encontrada?": {
+      "main": [
+        [
+          {
+            "node": "Chamar Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Formatar Erro Loja 404",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Erro Loja 404": {
+      "main": [
+        [
+          {
+            "node": "Responder 404 Loja Nao Encontrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chamar Evolution": {
+      "main": [
+        [
+          {
+            "node": "Formatar Resultado Seguro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Resultado Seguro": {
+      "main": [
+        [
+          {
+            "node": "Payload Publico Final",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Atualizar Telefone se Conectado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payload Publico Final": {
+      "main": [
+        [
+          {
+            "node": "Responder Sucesso Lojista",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Telefone se Conectado?": {
+      "main": [
+        [
+          {
+            "node": "Gravar Telefone na Loja",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Validar Parametros Iniciais",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}

@@ -1,0 +1,229 @@
+{
+  "name": "ADSWHATHS - LOGIN",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "adswhatslogin",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -608,
+        0
+      ],
+      "id": "a1b2c3d4-login-webhook-001",
+      "name": "Webhook Login",
+      "webhookId": "38e3191d-9456-45cd-9262-393785855765"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $input.item.json.body || {};\nconst rawLogin = (body.login || body.phone_number || body.email || '').trim();\nconst password = body.password || '';\n\n// Normaliza: se for e-mail mantém; se for telefone, remove caracteres especiais\nconst isEmail = rawLogin.includes('@');\nconst normalizedLogin = isEmail ? rawLogin.toLowerCase() : rawLogin.replace(/\\D/g, '');\n\n$input.item.json = {\n  login: normalizedLogin,\n  password: password\n};\n\nreturn $input.item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        0
+      ],
+      "id": "a1b2c3d4-login-normalize-002",
+      "name": "Normalizar Entrada"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "  SELECT \n    u.id,\n    u.nome,\n    u.email,\n    u.whatsapp,\n    u.avatar_url,\n    u.role,\n    u.ativo,\n    (u.password_hash = crypt($2, u.password_hash)) AS password_match\n  FROM usuarios u\n  WHERE (u.whatsapp = $1 OR LOWER(u.email) = LOWER($1)) AND u.ativo = TRUE\n  LIMIT 1\n",
+        "options": {
+          "queryReplacement": "={{ [$json.login, $json.password] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -160,
+        0
+      ],
+      "id": "a1b2c3d4-login-postgres-003",
+      "name": "Consultar Usuario",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const jwt = require('jsonwebtoken');\nconst user = $('Consultar Usuario').item.json;\nconst config = $('Config').item.json;\n\n// Se usuário não encontrado ou senha não confere\nif (!user || !user.id || !user.password_match) {\n  return {\n    json: {\n      statusCode: 401,\n      ok: false,\n      message: 'Credenciais inválidas ou usuário inativo.'\n    }\n  };\n}\n\n// Segredo de assinatura obtido exclusivamente da tabela configs\nconst configList = Array.isArray(config?.itens) ? config.itens : [];\nconst secret = (configList.find(item => item && item.key === 'jwtkey')?.value || '').trim();\nif (!secret) {\n  return {\n    json: {\n      statusCode: 500,\n      ok: false,\n      message: 'Erro de configuração: chave jwtkey não definida na tabela configs.'\n    }\n  };\n}\n\n// Payload para o JWT e sessão\nconst payload = {\n  user_id: user.id,\n  nome: user.nome,\n  email: user.email,\n  whatsapp: user.whatsapp,\n  avatar_url: user.avatar_url,\n  role: user.role || 'admin'\n};\n\nconst options = { expiresIn: '24h' };\nconst token = jwt.sign(payload, secret, options);\n\nreturn {\n  json: {\n    statusCode: 200,\n    ok: true,\n    access_token: token,\n    user: payload\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "a1b2c3d4-login-jwt-004",
+      "name": "Validar e Gerar JWT"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": "={{ $json.statusCode }}"
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        704,
+        0
+      ],
+      "id": "a1b2c3d4-login-response-005",
+      "name": "Responder Requisicao"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        -208
+      ],
+      "id": "a69dbdd0-82e8-4558-b6f2-b02f08f3f7f1",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "configs",
+          "mode": "list",
+          "cachedResultName": "configs"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        48,
+        0
+      ],
+      "id": "981d0e4f-f9c7-4ab5-a21d-37e6f9d66392",
+      "name": "CONFIGS",
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "itens",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        256,
+        0
+      ],
+      "id": "b41e6fbf-0c03-4eb0-9ba6-e5df29414f71",
+      "name": "Config"
+    }
+  ],
+  "connections": {
+    "Webhook Login": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Entrada": {
+      "main": [
+        [
+          {
+            "node": "Consultar Usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Usuario": {
+      "main": [
+        [
+          {
+            "node": "CONFIGS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar e Gerar JWT": {
+      "main": [
+        [
+          {
+            "node": "Responder Requisicao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIGS": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Validar e Gerar JWT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}

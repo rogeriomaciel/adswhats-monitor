@@ -1,0 +1,245 @@
+{
+  "name": "ADSWHATHS - DB-MIGRATIONS",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "mig-manual-trigger",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "adswhatsmigrations",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        180
+      ],
+      "id": "mig-webhook-trigger",
+      "name": "Webhook Migrations",
+      "webhookId": "adswhatsmigrations"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS public.schema_migrations (\n  id SERIAL PRIMARY KEY,\n  version VARCHAR(50) UNIQUE NOT NULL,\n  name VARCHAR(255) NOT NULL,\n  applied_at TIMESTAMPTZ DEFAULT NOW()\n);\n"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -580,
+        0
+      ],
+      "id": "mig-init-table",
+      "name": "Garantir Tabela schema_migrations",
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT version FROM public.schema_migrations ORDER BY id ASC;\n"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -360,
+        0
+      ],
+      "id": "mig-fetch-executed",
+      "name": "Buscar Migrations Executadas",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const executedItems = $input.all() || [];\nconst executedVersions = new Set(\n  executedItems\n    .map(item => item.json?.version)\n    .filter(Boolean)\n);\n\n// Cada migration executa o DDL e já grava seu registro com RETURNING atômico\nconst allMigrations = [\n  {\n    version: '20261026_001',\n    name: 'Tabela configs e constraints',\n    sql: `\n      CREATE TABLE IF NOT EXISTS public.configs (\n        id SERIAL PRIMARY KEY,\n        created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),\n        key VARCHAR(255) UNIQUE,\n        value VARCHAR(255)\n      );\n      CREATE UNIQUE INDEX IF NOT EXISTS configs_key_unique_idx ON public.configs (key);\n\n      INSERT INTO public.schema_migrations (version, name, applied_at)\n      VALUES ('20261026_001', 'Tabela configs e constraints', NOW())\n      ON CONFLICT (version) DO NOTHING\n      RETURNING version, name, applied_at;\n    `\n  },\n  {\n    version: '20261026_002',\n    name: 'Ajuste whatsapp_loja opcional e indices',\n    sql: `\n      ALTER TABLE public.lojas ALTER COLUMN whatsapp_loja DROP NOT NULL;\n      CREATE INDEX IF NOT EXISTS idx_lojas_whatsapp ON public.lojas (whatsapp_loja);\n      CREATE INDEX IF NOT EXISTS idx_lojas_ativo ON public.lojas (ativo);\n\n      INSERT INTO public.schema_migrations (version, name, applied_at)\n      VALUES ('20261026_002', 'Ajuste whatsapp_loja opcional e indices', NOW())\n      ON CONFLICT (version) DO NOTHING\n      RETURNING version, name, applied_at;\n    `\n  },\n  {\n    version: '20261026_003',\n    name: 'Indices de performance em mensagens e pessoas',\n    sql: `\n      CREATE INDEX IF NOT EXISTS idx_mensagens_loja_id ON public.mensagens (loja_id);\n      CREATE INDEX IF NOT EXISTS idx_mensagens_message_id ON public.mensagens (message_id);\n      CREATE INDEX IF NOT EXISTS idx_mensagens_timestamp ON public.mensagens (timestamp_mensagem DESC);\n      CREATE INDEX IF NOT EXISTS idx_pessoas_loja_whatsapp ON public.pessoas (loja_id, whatsapp);\n\n      INSERT INTO public.schema_migrations (version, name, applied_at)\n      VALUES ('20261026_003', 'Indices de performance em mensagens e pessoas', NOW())\n      ON CONFLICT (version) DO NOTHING\n      RETURNING version, name, applied_at;\n    `\n  },\n  {\n    version: '20261026_004',\n    name: 'Tabela criativos e campos de SLA e anuncios',\n    sql: `\n      CREATE TABLE IF NOT EXISTS public.criativos (\n        id SERIAL PRIMARY KEY,\n        loja_id INTEGER NOT NULL REFERENCES public.lojas(id) ON DELETE CASCADE,\n        ad_id VARCHAR(100) NOT NULL,\n        titulo VARCHAR(255),\n        tema TEXT,\n        canal VARCHAR(50) DEFAULT 'instagram',\n        media_url TEXT,\n        total_mensagens INTEGER DEFAULT 0,\n        total_pessoas_unicas INTEGER DEFAULT 0,\n        primeira_mensagem_at TIMESTAMPTZ DEFAULT NOW(),\n        ultima_mensagem_at TIMESTAMPTZ DEFAULT NOW(),\n        created_at TIMESTAMPTZ DEFAULT NOW(),\n        updated_at TIMESTAMPTZ DEFAULT NOW(),\n        CONSTRAINT uq_criativos_loja_ad UNIQUE (loja_id, ad_id)\n      );\n\n      CREATE INDEX IF NOT EXISTS idx_criativos_loja_id ON public.criativos(loja_id);\n      CREATE INDEX IF NOT EXISTS idx_criativos_ad_id ON public.criativos(ad_id);\n      CREATE INDEX IF NOT EXISTS idx_criativos_canal ON public.criativos(canal);\n\n      ALTER TABLE public.mensagens ADD COLUMN IF NOT EXISTS is_ad BOOLEAN DEFAULT false;\n      ALTER TABLE public.mensagens ADD COLUMN IF NOT EXISTS criativo_id INTEGER REFERENCES public.criativos(id) ON DELETE SET NULL;\n      ALTER TABLE public.mensagens ADD COLUMN IF NOT EXISTS ctwa_clid VARCHAR(255);\n      ALTER TABLE public.mensagens ADD COLUMN IF NOT EXISTS tempo_resposta_segundos INTEGER DEFAULT NULL;\n      ALTER TABLE public.mensagens ADD COLUMN IF NOT EXISTS respondida_em TIMESTAMPTZ DEFAULT NULL;\n      ALTER TABLE public.mensagens ADD COLUMN IF NOT EXISTS respondida_por_mensagem_id VARCHAR(255) DEFAULT NULL;\n\n      CREATE INDEX IF NOT EXISTS idx_mensagens_criativo_id ON public.mensagens(criativo_id);\n      CREATE INDEX IF NOT EXISTS idx_mensagens_is_ad ON public.mensagens(is_ad);\n      CREATE INDEX IF NOT EXISTS idx_mensagens_tempo_resposta ON public.mensagens(tempo_resposta_segundos) WHERE tempo_resposta_segundos IS NOT NULL;\n      CREATE INDEX IF NOT EXISTS idx_mensagens_respondida_em ON public.mensagens(respondida_em);\n      CREATE INDEX IF NOT EXISTS idx_mensagens_inbound_pendente ON public.mensagens(loja_id, pessoa_id, direcao, respondida_em) WHERE direcao = 'inbound' AND respondida_em IS NULL;\n\n      ALTER TABLE public.pessoas ADD COLUMN IF NOT EXISTS ultimo_criativo_id INTEGER REFERENCES public.criativos(id) ON DELETE SET NULL;\n      CREATE INDEX IF NOT EXISTS idx_pessoas_ultimo_criativo ON public.pessoas(ultimo_criativo_id);\n\n      INSERT INTO public.schema_migrations (version, name, applied_at)\n      VALUES ('20261026_004', 'Tabela criativos e campos de SLA e anuncios', NOW())\n      ON CONFLICT (version) DO NOTHING\n      RETURNING version, name, applied_at;\n    `\n  },\n  {\n    version: '20261026_005',\n    name: 'Token publico de conexao do lojista em lojas',\n    sql: `\n      ALTER TABLE public.lojas ADD COLUMN IF NOT EXISTS connect_token UUID DEFAULT gen_random_uuid();\n      UPDATE public.lojas SET connect_token = gen_random_uuid() WHERE connect_token IS NULL;\n      ALTER TABLE public.lojas ALTER COLUMN connect_token SET NOT NULL;\n      CREATE UNIQUE INDEX IF NOT EXISTS idx_lojas_connect_token ON public.lojas(connect_token);\n\n      INSERT INTO public.schema_migrations (version, name, applied_at)\n      VALUES ('20261026_005', 'Token publico de conexao do lojista em lojas', NOW())\n      ON CONFLICT (version) DO NOTHING\n      RETURNING version, name, applied_at;\n    `\n  }\n];\n\nconst pending = allMigrations.filter(m => !executedVersions.has(m.version));\n\nif (pending.length === 0) {\n  return [\n    {\n      json: {\n        hasPending: false,\n        message: 'Todas as migrações já foram aplicadas. Nenhuma ação necessária.',\n        totalApplied: executedVersions.size,\n        pendingCount: 0\n      }\n    }\n  ];\n}\n\nreturn pending.map(m => ({\n  json: {\n    hasPending: true,\n    version: m.version,\n    name: m.name,\n    sql: m.sql.trim()\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        0
+      ],
+      "id": "mig-filter-pending",
+      "name": "Definir e Filtrar Migrations Pendentes"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasPending }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        100,
+        0
+      ],
+      "id": "mig-if-pending",
+      "name": "Tem Migration Pendente?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  json: {\n    status: 'UP_TO_DATE',\n    message: 'Banco de dados 100% atualizado. Nenhuma migration pendente.'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        340,
+        -120
+      ],
+      "id": "mig-none-pending",
+      "name": "Nenhuma Pendente"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        340,
+        120
+      ],
+      "id": "mig-exec-sql",
+      "name": "Executar e Gravar Migration",
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all() || [];\nconst applied = items.map(item => item.json?.version || item.json?.name).filter(Boolean);\nreturn [\n  {\n    json: {\n      status: 'SUCCESS',\n      message: `Migrações executadas com sucesso: ${applied.length} aplicada(s).`,\n      appliedVersions: applied\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        120
+      ],
+      "id": "mig-summary",
+      "name": "Consolidar Resumo de Sucesso"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Garantir Tabela schema_migrations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Migrations": {
+      "main": [
+        [
+          {
+            "node": "Garantir Tabela schema_migrations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Garantir Tabela schema_migrations": {
+      "main": [
+        [
+          {
+            "node": "Buscar Migrations Executadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Migrations Executadas": {
+      "main": [
+        [
+          {
+            "node": "Definir e Filtrar Migrations Pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Definir e Filtrar Migrations Pendentes": {
+      "main": [
+        [
+          {
+            "node": "Tem Migration Pendente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem Migration Pendente?": {
+      "main": [
+        [
+          {
+            "node": "Executar e Gravar Migration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nenhuma Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Executar e Gravar Migration": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Resumo de Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

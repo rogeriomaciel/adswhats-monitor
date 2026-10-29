@@ -1,0 +1,345 @@
+{
+  "name": "ADSWHATHS - PANEL",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "configs",
+          "mode": "list",
+          "cachedResultName": "configs"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -400,
+        -144
+      ],
+      "id": "panel-configs-db",
+      "name": "CONFIGS",
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "itens",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        -144
+      ],
+      "id": "panel-config-agg",
+      "name": "Config"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const jwt = require('jsonwebtoken');\nconst triggerData = $('Initial').first().json || {};\nconst headers = triggerData.headers || {};\nconst body = triggerData.body || {};\nconst configData = $('Config').first().json || {};\n\nconst authHeader = headers.authorization || headers.Authorization || '';\nif (!authHeader || !authHeader.startsWith('Bearer ')) {\n  return { json: { action: 'ERROR', statusCode: 401, error: 'Acesso não autorizado: Token Bearer não fornecido.' } };\n}\n\nconst token = authHeader.split(' ')[1];\nconst configList = Array.isArray(configData?.itens) ? configData.itens : [];\n\nconst configsMap = {};\nconfigList.forEach(item => {\n  if (item && item.key) configsMap[item.key] = item.value;\n});\n\nconst secret = (configsMap.jwtkey || '').trim();\nif (!secret) {\n  return { json: { action: 'ERROR', statusCode: 500, error: 'Erro de configuração: chave jwtkey ausente na tabela configs.' } };\n}\n\ntry {\n  const decoded = jwt.verify(token, secret);\n  const rawAction = body.action || 'DEFAULT';\n  const normalizedAction = rawAction.toUpperCase().replace(/_/g, '-');\n  const targetWorkflowName = `ADSWHATHS-PANEL-ACTION-${normalizedAction}`;\n\n  return {\n    json: {\n      action: rawAction,\n      targetWorkflowName,\n      statusCode: 200,\n      user: decoded,\n      body: body.payload || body,\n      configs: configsMap\n    }\n  };\n} catch (err) {\n  return { json: { action: 'ERROR', statusCode: 403, error: 'Acesso negado: Token inválido ou expirado.' } };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        -144
+      ],
+      "id": "panel-auth-002",
+      "name": "Middleware Auth & Router"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.statusCode }}",
+              "operation": "notEqual",
+              "value2": 200
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        272,
+        -144
+      ],
+      "id": "panel-if-error-003",
+      "name": "If Auth Error"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": "={{ $json.statusCode }}"
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        496,
+        -240
+      ],
+      "id": "panel-resp-error-004",
+      "name": "Respond Auth Error"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('GETWORKFLOW').item.json.id }}",
+          "cachedResultName": "={{ $('GETWORKFLOW').item.json.id }}"
+        },
+        "workflowInputs": {
+          "mappingMode": "passthrough",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        944,
+        -48
+      ],
+      "id": "panel-exec-action-005",
+      "name": "Execute Action Workflow"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1168,
+        -48
+      ],
+      "id": "panel-resp-success-006",
+      "name": "Respond Action Result"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "paneladswhats",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -848,
+        -48
+      ],
+      "id": "panel-webhook-001",
+      "name": "POST /paneladswhats",
+      "webhookId": "5311d425-e812-4a54-8d82-98af2f058789"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        -240
+      ],
+      "id": "ecf0c22c-1e4b-4fe1-b46b-1ff01bb272f5",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\n\nreturn $input.item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -624,
+        -144
+      ],
+      "id": "69833c44-94ac-4c8f-b89f-d43e0265f46e",
+      "name": "Initial"
+    },
+    {
+      "parameters": {
+        "filters": {
+          "name": "={{ $json.targetWorkflowName }}"
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        496,
+        -48
+      ],
+      "id": "9029be99-f9d0-4041-b48a-6df263a1411e",
+      "name": "GETWORKFLOW",
+      "credentials": {
+        "n8nApi": {
+          "id": "lP3PEZgbQG504WdJ",
+          "name": "n8n local"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return $('If Auth Error').item;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -48
+      ],
+      "id": "f362ef6b-b430-44bb-ae7d-bb5602a9d358",
+      "name": "RESET"
+    }
+  ],
+  "connections": {
+    "CONFIGS": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Middleware Auth & Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Middleware Auth & Router": {
+      "main": [
+        [
+          {
+            "node": "If Auth Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Auth Error": {
+      "main": [
+        [
+          {
+            "node": "Respond Auth Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GETWORKFLOW",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Action Workflow": {
+      "main": [
+        [
+          {
+            "node": "Respond Action Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /paneladswhats": {
+      "main": [
+        [
+          {
+            "node": "Initial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Initial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initial": {
+      "main": [
+        [
+          {
+            "node": "CONFIGS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GETWORKFLOW": {
+      "main": [
+        [
+          {
+            "node": "RESET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RESET": {
+      "main": [
+        [
+          {
+            "node": "Execute Action Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}
