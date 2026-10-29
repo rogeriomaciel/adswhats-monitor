@@ -44,7 +44,7 @@
       "name": "Consultar Contato",
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -68,7 +68,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "postgres-default",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }

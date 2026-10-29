@@ -44,7 +44,7 @@
       "name": "Garantir Tabela schema_migrations",
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -65,7 +65,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -133,7 +133,7 @@
       "name": "Executar e Gravar Migration",
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }

@@ -50,7 +50,7 @@
       "name": "CONFIGS",
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -111,7 +111,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -149,7 +149,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -222,7 +222,7 @@
       "onError": "continueRegularOutput",
       "credentials": {
         "googlePalmApi": {
-          "id": "XeGsz9eHLKBUyX6c",
+          "id": "a8AUd42DbQPhJ2EY",
           "name": "Gemini Api Key Rogerio"
         }
       }
@@ -254,7 +254,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -274,7 +274,7 @@
       "name": "Upsert Contato (Pessoa)",
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -295,7 +295,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -315,7 +315,7 @@
       "name": "Gravar Mensagem",
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -336,7 +336,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }

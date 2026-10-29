@@ -64,7 +64,7 @@
       "name": "Atualizar Loja",
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -87,7 +87,7 @@
       "name": "Inserir Loja",
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
@@ -276,7 +276,7 @@
       "name": "Atualizar Config Instância no Banco",
       "credentials": {
         "postgres": {
-          "id": "U8N2JqlE7H4EOEg6",
+          "id": "gzdxauwjYJWSCtxI",
           "name": "ADSWHATS"
         }
       }
