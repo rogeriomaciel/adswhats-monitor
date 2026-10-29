@@ -14,16 +14,16 @@ flowchart TD
         Browser[Navegador Web / HTTPS]
     end
 
-    subgraph VPS_Frontend_n8n [VPS 1: Backend Gateway & Frontend - 3.20.20.201]
+    subgraph VPS_Frontend_n8n [VPS 1: Backend Gateway & Frontend]
         NginxHost[Nginx Reverse Proxy / SSL Let's Encrypt]
         StaticSPA[SPA React /var/www/adswhatsmonitor]
         N8NApp[n8n App Container :5678]
         PostgresN8N[(PostgreSQL 16 Local :5432)]
     end
 
-    subgraph VPS_Evolution [VPS 2: WhatsApp Engine - 3.14.59.105]
+    subgraph VPS_Evolution [VPS 2: WhatsApp Engine]
         NginxEvo[Nginx Reverse Proxy / SSL Let's Encrypt]
-        EvoAPI[Evolution API v2.2.3 :8080]
+        EvoAPI[Evolution API v2.3.7 :8080]
         RedisEvo[(Redis 7 Local 256MB LRU)]
         PostgresEvo[(PostgreSQL 16 Local)]
     end
@@ -32,24 +32,24 @@ flowchart TD
         Supabase[(Supabase Cloud - PostgreSQL)]
     end
 
-    Browser -->|adswhatsmonitor.alvoestrategia.com.br| StaticSPA
-    Browser -->|n8nalvo.rogeriomaciel.com.br| N8NApp
-    StaticSPA -->|apiadswhats.alvoestrategia.com.br/app| N8NApp
+    Browser -->|app.seudominio.com| StaticSPA
+    Browser -->|n8n.seudominio.com| N8NApp
+    StaticSPA -->|api.seudominio.com/app| N8NApp
     N8NApp <-->|Pooler SSL 6543| Supabase
     EvoAPI -->|Webhooks /app/inbound| N8NApp
-    N8NApp -->|whatsweb.alvoestrategia.com.br| EvoAPI
+    N8NApp -->|whats.seudominio.com| EvoAPI
 ```
 
 ---
 
 ## 📌 2. Mapeamento de Domínios e Serviços
 
-| Domínio | Host IP | Serviço | Segurança / Regras |
+| Domínio (Exemplo) | Host | Serviço | Segurança / Regras |
 | :--- | :--- | :--- | :--- |
-| **`adswhatsmonitor.alvoestrategia.com.br`** | `3.20.20.201` | Frontend SPA (React + Vite) | Gzip ativo, cache longo de assets (`/assets/`), fallback para `index.html`. |
-| **`apiadswhats.alvoestrategia.com.br`** | `3.20.20.201` | Gateway Público de API / Webhooks | Raiz `/` bloqueada com **404**. Rotas `/app` e `/api` liberadas com **CORS completo**. |
-| **`n8nalvo.rogeriomaciel.com.br`** | `3.20.20.201` | Painel Administrativo do n8n | Acesso restrito ao editor e workflows do n8n com WebSockets. |
-| **`whatsweb.alvoestrategia.com.br`** | `3.14.59.105` | Evolution API (v2.2.3) | Timeouts de 86400s para SSE/WebSockets, upload até 100MB, Redis com limite de 256MB. |
+| **`app.seudominio.com`** | VPS 1 | Frontend SPA (React + Vite) | Gzip ativo, cache longo de assets (`/assets/`), fallback para `index.html`. |
+| **`api.seudominio.com`** | VPS 1 | Gateway Público de API / Webhooks | Raiz `/` bloqueada com **404**. Rotas `/app` e `/api` liberadas com **CORS completo**. |
+| **`n8n.seudominio.com`** | VPS 1 | Painel Administrativo do n8n | Acesso restrito ao editor e workflows do n8n com WebSockets. |
+| **`whats.seudominio.com`** | VPS 2 | Evolution API | Timeouts de 86400s para SSE/WebSockets, upload até 100MB, Redis com limite de 256MB. |
 
 ---
 
@@ -58,14 +58,14 @@ flowchart TD
 A esteira de integração e entrega contínua está definida em [`.github/workflows/ci.yml`](file:///.github/workflows/ci.yml) e é disparada **exclusivamente após a aprovação e merge de Pull Requests na branch `main`**.
 
 ### 🔒 Segredos Utilizados (GitHub Actions Secrets):
-- `VITE_API_URL`: `https://apiadswhats.alvoestrategia.com.br/app`
-- `PROD_N8N_HOST`: `apiadswhats.alvoestrategia.com.br`
+- `VITE_API_URL`: URL base da API pública (ex: `https://api.seudominio.com/app`)
+- `PROD_N8N_HOST`: Host do n8n para deploy de workflows (ex: `api.seudominio.com`)
 - `PROD_N8N_API_KEY`: API Key oficial do n8n
-- `SSH_HOST`: `3.20.20.201`
-- `SSH_USER`: `ubuntu`
-- `SSH_PORT`: `22`
-- `SSH_PRIVATE_KEY`: Chave RSA autorizada na VPS
-- `DEPLOY_TARGET`: `/var/www/adswhatsmonitor`
+- `SSH_HOST`: IP ou Host da VPS de Frontend/API
+- `SSH_USER`: Usuário SSH da VPS (ex: `ubuntu`)
+- `SSH_PORT`: Porta SSH da VPS (padrão: `22`)
+- `SSH_PRIVATE_KEY`: Chave privada SSH autorizada na VPS
+- `DEPLOY_TARGET`: Diretório do SPA no servidor (ex: `/var/www/adswhatsmonitor`)
 
 ---
 

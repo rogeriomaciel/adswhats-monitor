@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Script de provisionamento e deploy do n8n na VPS
-# Host: n8nalvo.rogeriomaciel.com.br (IP: 3.20.20.201)
+# Script de provisionamento e deploy do n8n na VPS (Template IaC)
+# Exemplo de uso: REMOTE_IP=198.51.100.1 DOMAIN=n8n.seudominio.com KEY_PATH=~/.ssh/id_rsa ./deploy.sh
 # ==============================================================================
 set -euo pipefail
 
-KEY_PATH="/rogerio/core/adswhats-monitor/sec/n8n.pem"
-REMOTE_USER="ubuntu"
-REMOTE_IP="3.20.20.201"
-DOMAIN="n8nalvo.rogeriomaciel.com.br"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+KEY_PATH="${KEY_PATH:-$SCRIPT_DIR/../../sec/n8n.pem}"
+REMOTE_USER="${REMOTE_USER:-ubuntu}"
+REMOTE_IP="${REMOTE_IP:-SEU_IP_VPS}"
+DOMAIN="${DOMAIN:-n8n.seudominio.com}"
+
+if [ "$REMOTE_IP" = "SEU_IP_VPS" ]; then
+    echo "Erro: Defina a variável REMOTE_IP antes de executar o script."
+    exit 1
+fi
 
 chmod 600 "$KEY_PATH"
 
@@ -56,9 +62,9 @@ sudo chown -R ubuntu:ubuntu /opt/n8n
 REMOTE_INIT
 
 echo ">>> 3. Enviando arquivos de configuração para a VPS (/opt/n8n)..."
-scp -i "$KEY_PATH" /rogerio/core/adswhats-monitor/infra/vps-n8n/docker-compose.yml "$REMOTE_USER@$REMOTE_IP":/opt/n8n/docker-compose.yml
-scp -i "$KEY_PATH" /rogerio/core/adswhats-monitor/infra/vps-n8n/.env.example "$REMOTE_USER@$REMOTE_IP":/opt/n8n/.env
-scp -i "$KEY_PATH" /rogerio/core/adswhats-monitor/infra/vps-n8n/nginx-n8n.conf "$REMOTE_USER@$REMOTE_IP":/tmp/nginx-n8n.conf
+scp -i "$KEY_PATH" "$SCRIPT_DIR/docker-compose.yml" "$REMOTE_USER@$REMOTE_IP":/opt/n8n/docker-compose.yml
+scp -i "$KEY_PATH" "$SCRIPT_DIR/.env.example" "$REMOTE_USER@$REMOTE_IP":/opt/n8n/.env
+scp -i "$KEY_PATH" "$SCRIPT_DIR/nginx-n8n.conf" "$REMOTE_USER@$REMOTE_IP":/tmp/nginx-n8n.conf
 
 echo ">>> 4. Configurando Nginx, SSL Let's Encrypt e iniciando contêineres..."
 ssh -o StrictHostKeyChecking=no -i "$KEY_PATH" "$REMOTE_USER@$REMOTE_IP" "bash -s" << REMOTE_DEPLOY

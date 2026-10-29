@@ -105,8 +105,8 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
       setApiUrl(rawApiUrl.includes("api.evolution.com.br") ? "" : rawApiUrl);
       
       let initialWebhook = (evo.webhookUrl || "").trim();
-      if (initialWebhook && initialWebhook.includes(".rogeriomaciel.com.br/adswhatsinbound") && !initialWebhook.includes("/app/")) {
-        initialWebhook = initialWebhook.replace(".rogeriomaciel.com.br/adswhatsinbound", ".rogeriomaciel.com.br/app/adswhatsinbound");
+      if (initialWebhook && initialWebhook.endsWith("/adswhatsinbound") && !initialWebhook.includes("/app/")) {
+        initialWebhook = initialWebhook.replace("/adswhatsinbound", "/app/adswhatsinbound");
       }
       setWebhookUrl(initialWebhook);
 
@@ -303,8 +303,8 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
             : instanceName.trim(),
           apikey: apikey.trim(),
           apiUrl: apiUrl.trim().includes("api.evolution.com.br") ? "" : apiUrl.trim(),
-          webhookUrl: webhookUrl.trim().includes(".rogeriomaciel.com.br/adswhatsinbound") && !webhookUrl.trim().includes("/app/")
-            ? webhookUrl.trim().replace(".rogeriomaciel.com.br/adswhatsinbound", ".rogeriomaciel.com.br/app/adswhatsinbound")
+          webhookUrl: webhookUrl.trim().endsWith("/adswhatsinbound") && !webhookUrl.trim().includes("/app/")
+            ? webhookUrl.trim().replace("/adswhatsinbound", "/app/adswhatsinbound")
             : webhookUrl.trim(),
         },
       };
@@ -861,7 +861,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
                       type="url"
                       value={apiUrl}
                       onChange={(e) => setApiUrl(e.target.value)}
-                      placeholder="https://evolution.rogeriomaciel.com.br (padrão)"
+                      placeholder="https://whats.seudominio.com (padrão)"
                       className="w-full px-3 py-2 rounded-lg border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     />
                   </div>
@@ -872,10 +872,10 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
                       type="url"
                       value={webhookUrl}
                       onChange={(e) => setWebhookUrl(e.target.value)}
-                      placeholder="https://api-staging.rogeriomaciel.com.br/app/adswhatsinbound (padrão)"
+                      placeholder="https://api.seudominio.com/app/adswhatsinbound (padrão)"
                       className="w-full px-3 py-2 rounded-lg border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono"
                     />
-                    <span className="text-[10px] text-muted-foreground">Padrão: https://api-staging.rogeriomaciel.com.br/app/adswhatsinbound</span>
+                    <span className="text-[10px] text-muted-foreground">Padrão: herdado das configurações do servidor</span>
                   </div>
                 </div>
 

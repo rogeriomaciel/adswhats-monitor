@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Script de provisionamento e deploy da Evolution API na VPS
-# Host: whatsweb.alvoestrategia.com.br (IP: 3.14.59.105)
+# Script de provisionamento e deploy da Evolution API na VPS (Template IaC)
+# Exemplo de uso: REMOTE_IP=198.51.100.2 DOMAIN=whats.seudominio.com KEY_PATH=~/.ssh/id_rsa ./deploy.sh
 # ==============================================================================
 set -euo pipefail
 
-KEY_PATH="/rogerio/core/adswhats-monitor/sec/evolution.pem"
-REMOTE_USER="ubuntu"
-REMOTE_IP="3.14.59.105"
-DOMAIN="whatsweb.alvoestrategia.com.br"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+KEY_PATH="${KEY_PATH:-$SCRIPT_DIR/../../sec/evolution.pem}"
+REMOTE_USER="${REMOTE_USER:-ubuntu}"
+REMOTE_IP="${REMOTE_IP:-SEU_IP_VPS}"
+DOMAIN="${DOMAIN:-whats.seudominio.com}"
+
+if [ "$REMOTE_IP" = "SEU_IP_VPS" ]; then
+    echo "Erro: Defina a variável REMOTE_IP antes de executar o script."
+    exit 1
+fi
 
 chmod 600 "$KEY_PATH"
 
@@ -56,9 +62,9 @@ sudo chown -R ubuntu:ubuntu /opt/evolution
 REMOTE_INIT
 
 echo ">>> 3. Enviando arquivos de configuração para a VPS (/opt/evolution)..."
-scp -i "$KEY_PATH" /rogerio/core/adswhats-monitor/infra/vps-evolution/docker-compose.yml "$REMOTE_USER@$REMOTE_IP":/opt/evolution/docker-compose.yml
-scp -i "$KEY_PATH" /rogerio/core/adswhats-monitor/infra/vps-evolution/.env.example "$REMOTE_USER@$REMOTE_IP":/opt/evolution/.env
-scp -i "$KEY_PATH" /rogerio/core/adswhats-monitor/infra/vps-evolution/nginx-whatsweb.conf "$REMOTE_USER@$REMOTE_IP":/tmp/nginx-whatsweb.conf
+scp -i "$KEY_PATH" "$SCRIPT_DIR/docker-compose.yml" "$REMOTE_USER@$REMOTE_IP":/opt/evolution/docker-compose.yml
+scp -i "$KEY_PATH" "$SCRIPT_DIR/.env.example" "$REMOTE_USER@$REMOTE_IP":/opt/evolution/.env
+scp -i "$KEY_PATH" "$SCRIPT_DIR/nginx-whatsweb.conf" "$REMOTE_USER@$REMOTE_IP":/tmp/nginx-whatsweb.conf
 
 echo ">>> 4. Configurando Nginx, SSL Let's Encrypt e iniciando contêineres..."
 ssh -o StrictHostKeyChecking=no -i "$KEY_PATH" "$REMOTE_USER@$REMOTE_IP" "bash -s" << REMOTE_DEPLOY

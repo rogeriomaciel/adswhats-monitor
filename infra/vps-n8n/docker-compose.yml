@@ -29,11 +29,11 @@ services:
       - "127.0.0.1:5678:5678"
     environment:
       # Configurações do Domínio e Webhooks
-      N8N_HOST: ${N8N_HOST:-n8nalvo.rogeriomaciel.com.br}
+      N8N_HOST: ${N8N_HOST:-n8n.seudominio.com}
       N8N_PORT: 5678
       N8N_PROTOCOL: https
       NODE_ENV: production
-      WEBHOOK_URL: https://apiadswhats.alvoestrategia.com.br/
+      WEBHOOK_URL: ${WEBHOOK_URL:-https://api.seudominio.com/}
       N8N_ENDPOINT_WEBHOOK: app
       N8N_ENDPOINT_WEBHOOK_TEST: app_test
       GENERIC_TIMEZONE: America/Sao_Paulo

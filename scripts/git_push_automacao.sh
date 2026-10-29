@@ -53,7 +53,12 @@ if command -v gh &> /dev/null && gh auth status &> /dev/null; then
 else
   echo "💡 GitHub CLI não está autenticado."
   echo "Acesse o GitHub para abrir o seu Pull Request manualmente:"
-  echo "🔗 https://github.com/rogeriomaciel/adswhats-monitor/compare/main...$BRANCH_NAME"
+  REMOTE_URL=$(git config --get remote.origin.url 2>/dev/null | sed 's/\.git$//' | sed 's/git@github.com:/https:\/\/github.com\//' || true)
+  if [ -n "$REMOTE_URL" ]; then
+    echo "🔗 ${REMOTE_URL}/compare/main...$BRANCH_NAME"
+  else
+    echo "🔗 https://github.com/SEU_USUARIO/SEU_REPOSITORIO/compare/main...$BRANCH_NAME"
+  fi
 fi
 echo "========================================================================="
 

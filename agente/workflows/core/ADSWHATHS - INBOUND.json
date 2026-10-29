@@ -11,7 +11,10 @@
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-1200, 0],
+      "position": [
+        -1200,
+        0
+      ],
       "id": "inbound-webhook",
       "name": "Webhook Evolution",
       "webhookId": "adswhatsinbound"
@@ -23,7 +26,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1020, 0],
+      "position": [
+        -1020,
+        0
+      ],
       "id": "inbound-initial",
       "name": "Initial"
     },
@@ -45,7 +51,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
-      "position": [-840, 0],
+      "position": [
+        -840,
+        0
+      ],
       "id": "inbound-configs-db",
       "name": "CONFIGS",
       "credentials": {
@@ -63,18 +72,24 @@
       },
       "type": "n8n-nodes-base.aggregate",
       "typeVersion": 1,
-      "position": [-660, 0],
+      "position": [
+        -660,
+        0
+      ],
       "id": "inbound-config-agg",
       "name": "Config"
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const initialData = $('Initial').first().json || {};\nconst body = initialData.body || initialData || {};\nconst data = body.data || {};\nconst key = data.key || body.key || {};\n\nconst configData = $('Config').first().json || {};\nconst configList = Array.isArray(configData?.itens) ? configData.itens : [];\nconst configsMap = {};\nconfigList.forEach(item => {\n  if (item && item.key) configsMap[item.key] = item.value;\n});\n\nconst messageId = key.id || '';\nconst fromMe = Boolean(key.fromMe);\n\n// Ignora eventos que não sejam mensagens ou mensagens sem ID\nif (!messageId) {\n  return {\n    json: {\n      isValidMessage: false,\n      reason: 'Evento sem key.id de mensagem.',\n      configs: configsMap\n    }\n  };\n}\n\n// Identifica participante e se é grupo\nconst remoteJid = key.remoteJid || body.sender || '';\nconst isGroup = remoteJid.includes('@g.us') || remoteJid.includes('broadcast');\n\nif (isGroup) {\n  return {\n    json: {\n      isValidMessage: false,\n      reason: 'Mensagem de grupo ou broadcast ignorada pelo monitor.',\n      configs: configsMap\n    }\n  };\n}\n\nconst rawClientPhone = (key.remoteJidAlt || remoteJid).split('@')[0].split(':')[0].replace(/\\D/g, '');\nconst clientPhone = rawClientPhone.startsWith('55') ? rawClientPhone : ('55' + rawClientPhone);\nconst clientName = (data.pushName || body.senderName || '').trim();\n\n// Telefone da instância conectada da loja\nconst rawConnectedPhone = (body.sender || body.destination || data.owner || '').split('@')[0].split(':')[0].replace(/\\D/g, '');\nconst connectedPhone = rawConnectedPhone.startsWith('55') ? rawConnectedPhone : ('55' + rawConnectedPhone);\nconst instanceName = body.instance || '';\n\n// Tipo de mensagem e extração de conteúdo\nconst messageTypeRaw = String(data.messageType || '').toLowerCase();\nlet tipo = 'texto';\nlet conteudo = '';\nlet midiaUrl = '';\nlet isAudio = false;\nlet audioBase64 = '';\n\nconst msgObj = data.message || {};\n\nif (messageTypeRaw.includes('audio') || msgObj.audioMessage) {\n  tipo = 'audio';\n  isAudio = true;\n  audioBase64 = data.base64 || msgObj.audioMessage?.base64 || '';\n  conteudo = '[Mensagem de Áudio]';\n} else if (messageTypeRaw.includes('image') || msgObj.imageMessage) {\n  tipo = 'imagem';\n  conteudo = msgObj.imageMessage?.caption || '[Imagem]';\n  midiaUrl = msgObj.imageMessage?.url || '';\n} else if (messageTypeRaw.includes('video') || msgObj.videoMessage) {\n  tipo = 'video';\n  conteudo = msgObj.videoMessage?.caption || '[Vídeo]';\n} else if (messageTypeRaw.includes('document') || msgObj.documentMessage) {\n  tipo = 'documento';\n  conteudo = msgObj.documentMessage?.title || msgObj.documentMessage?.fileName || '[Documento]';\n} else if (msgObj.conversation) {\n  tipo = 'texto';\n  conteudo = msgObj.conversation;\n} else if (msgObj.extendedTextMessage?.text) {\n  tipo = 'texto';\n  conteudo = msgObj.extendedTextMessage.text;\n} else {\n  tipo = 'texto';\n  conteudo = msgObj.conversation || '[Mensagem]';\n}\n\n// Deteccao de Anuncios Meta / Instagram / Facebook (CTWA)\nconst contextInfo = msgObj.extendedTextMessage?.contextInfo || data.contextInfo || {};\nconst adReply = contextInfo.externalAdReply;\nconst isAd = contextInfo.conversionSource === 'FB_Ads' || contextInfo.entryPointConversionSource === 'ctwa_ad' || Boolean(adReply);\n\nlet dadosAds = {};\nlet origem = 'organico';\n\nif (isAd && adReply) {\n  const rawBody = adReply.body || '';\n  const cleanBody = rawBody\n    .split('\\n')\n    .map(line => line.trim())\n    .filter(line => line && !line.startsWith('#'))\n    .join(' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n\n  const resumoAd = cleanBody.length > 250 ? cleanBody.substring(0, 247) + '...' : cleanBody;\n  const canal = (contextInfo.entryPointConversionApp || adReply.sourceApp || 'instagram').toLowerCase();\n\n  origem = canal.includes('facebook') ? 'facebook_ads' : 'instagram_ads';\n\n  dadosAds = {\n    isAd: true,\n    canal,\n    conversaoOrigem: contextInfo.conversionSource || contextInfo.entryPointConversionSource || 'FB_Ads',\n    adId: adReply.sourceId || '',\n    adTitulo: adReply.title || '',\n    adTema: resumoAd,\n    ctwaClid: adReply.ctwaClid || ''\n  };\n}\n\nreturn {\n  json: {\n    isValidMessage: true,\n    configs: configsMap,\n    messageId,\n    fromMe,\n    direcao: fromMe ? 'outbound' : 'inbound',\n    instanceName,\n    connectedPhone,\n    clientPhone,\n    clientName,\n    tipo,\n    conteudo,\n    midiaUrl,\n    isAudio,\n    audioBase64,\n    hasAudioBase64: Boolean(audioBase64),\n    isAd,\n    dadosAds,\n    origem,\n    rawPayload: body\n  }\n};"
+        "jsCode": "const initialData = $('Initial').first().json || {};\nconst body = initialData.body || initialData || {};\nconst data = body.data || {};\nconst key = data.key || body.key || {};\n\nconst configData = $('Config').first().json || {};\nconst configList = Array.isArray(configData?.itens) ? configData.itens : [];\nconst configsMap = {};\nconfigList.forEach(item => {\n  if (item && item.key) configsMap[item.key] = item.value;\n});\n\nconst messageId = key.id || '';\nconst fromMe = Boolean(key.fromMe);\n\n// Ignora eventos que não sejam mensagens ou mensagens sem ID\nif (!messageId) {\n  return {\n    json: {\n      isValidMessage: false,\n      reason: 'Evento sem key.id de mensagem.',\n      configs: configsMap\n    }\n  };\n}\n\n// Identifica participante e se é grupo\nconst remoteJid = key.remoteJid || body.sender || '';\nconst isGroup = remoteJid.includes('@g.us') || remoteJid.includes('broadcast');\n\nif (isGroup) {\n  return {\n    json: {\n      isValidMessage: false,\n      reason: 'Mensagem de grupo ou broadcast ignorada pelo monitor.',\n      configs: configsMap\n    }\n  };\n}\n\nconst rawClientPhone = (key.remoteJidAlt || remoteJid).split('@')[0].split(':')[0].replace(/\\D/g, '');\nconst clientPhone = rawClientPhone.startsWith('55') ? rawClientPhone : ('55' + rawClientPhone);\nconst clientName = fromMe ? '' : (data.pushName || body.senderName || '').trim();\n\n// Telefone da instância conectada da loja\nconst rawConnectedPhone = (body.sender || body.destination || data.owner || '').split('@')[0].split(':')[0].replace(/\\D/g, '');\nconst connectedPhone = rawConnectedPhone.startsWith('55') ? rawConnectedPhone : ('55' + rawConnectedPhone);\nconst instanceName = body.instance || '';\n\n// Tipo de mensagem e extração de conteúdo\nconst messageTypeRaw = String(data.messageType || '').toLowerCase();\nlet tipo = 'texto';\nlet conteudo = '';\nlet midiaUrl = '';\nlet isAudio = false;\nlet audioBase64 = '';\n\nconst msgObj = data.message || {};\n\nif (messageTypeRaw.includes('audio') || msgObj.audioMessage) {\n  tipo = 'audio';\n  isAudio = true;\n  audioBase64 = data.base64 || msgObj.audioMessage?.base64 || '';\n  conteudo = '[Mensagem de Áudio]';\n} else if (messageTypeRaw.includes('image') || msgObj.imageMessage) {\n  tipo = 'imagem';\n  conteudo = msgObj.imageMessage?.caption || '[Imagem]';\n  midiaUrl = msgObj.imageMessage?.url || '';\n} else if (messageTypeRaw.includes('video') || msgObj.videoMessage) {\n  tipo = 'video';\n  conteudo = msgObj.videoMessage?.caption || '[Vídeo]';\n} else if (messageTypeRaw.includes('document') || msgObj.documentMessage) {\n  tipo = 'documento';\n  conteudo = msgObj.documentMessage?.title || msgObj.documentMessage?.fileName || '[Documento]';\n} else if (msgObj.conversation) {\n  tipo = 'texto';\n  conteudo = msgObj.conversation;\n} else if (msgObj.extendedTextMessage?.text) {\n  tipo = 'texto';\n  conteudo = msgObj.extendedTextMessage.text;\n} else {\n  tipo = 'texto';\n  conteudo = msgObj.conversation || '[Mensagem]';\n}\n\n// Deteccao de Anuncios Meta / Instagram / Facebook (CTWA)\nconst contextInfo = msgObj.extendedTextMessage?.contextInfo || data.contextInfo || {};\nconst adReply = contextInfo.externalAdReply;\nconst isAd = contextInfo.conversionSource === 'FB_Ads' || contextInfo.entryPointConversionSource === 'ctwa_ad' || Boolean(adReply);\n\nlet dadosAds = {};\nlet origem = 'organico';\n\nif (isAd && adReply) {\n  const rawBody = adReply.body || '';\n  const cleanBody = rawBody\n    .split('\\n')\n    .map(line => line.trim())\n    .filter(line => line && !line.startsWith('#'))\n    .join(' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n\n  const resumoAd = cleanBody.length > 250 ? cleanBody.substring(0, 247) + '...' : cleanBody;\n  const canal = (contextInfo.entryPointConversionApp || adReply.sourceApp || 'instagram').toLowerCase();\n\n  origem = canal.includes('facebook') ? 'facebook_ads' : 'instagram_ads';\n\n  dadosAds = {\n    isAd: true,\n    canal,\n    conversaoOrigem: contextInfo.conversionSource || contextInfo.entryPointConversionSource || 'FB_Ads',\n    adId: adReply.sourceId || '',\n    adTitulo: adReply.title || '',\n    adTema: resumoAd,\n    ctwaClid: adReply.ctwaClid || ''\n  };\n}\n\nreturn {\n  json: {\n    isValidMessage: true,\n    configs: configsMap,\n    messageId,\n    fromMe,\n    direcao: fromMe ? 'outbound' : 'inbound',\n    instanceName,\n    connectedPhone,\n    clientPhone,\n    clientName,\n    tipo,\n    conteudo,\n    midiaUrl,\n    isAudio,\n    audioBase64,\n    hasAudioBase64: Boolean(audioBase64),\n    isAd,\n    dadosAds,\n    origem,\n    rawPayload: body\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-480, 0],
+      "position": [
+        -480,
+        0
+      ],
       "id": "inbound-extract",
       "name": "Extrair Metadados"
     },
@@ -91,7 +106,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [-280, 0],
+      "position": [
+        -280,
+        0
+      ],
       "id": "inbound-if-valid",
       "name": "É Mensagem Válida?"
     },
@@ -105,7 +123,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
-      "position": [-60, -100],
+      "position": [
+        -60,
+        -100
+      ],
       "id": "inbound-anti-replay",
       "name": "Anti-Replay Log",
       "alwaysOutputData": true,
@@ -129,7 +150,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [160, -100],
+      "position": [
+        160,
+        -100
+      ],
       "id": "inbound-if-new",
       "name": "É Mensagem Nova?"
     },
@@ -143,7 +167,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
-      "position": [380, -200],
+      "position": [
+        380,
+        -200
+      ],
       "id": "inbound-get-loja",
       "name": "Identificar Loja",
       "alwaysOutputData": true,
@@ -167,7 +194,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [600, -200],
+      "position": [
+        600,
+        -200
+      ],
       "id": "inbound-if-loja",
       "name": "Loja Encontrada?"
     },
@@ -184,7 +214,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [820, -320],
+      "position": [
+        820,
+        -320
+      ],
       "id": "inbound-if-audio",
       "name": "É Áudio com Base64?"
     },
@@ -198,7 +231,10 @@
       },
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1.1,
-      "position": [1040, -420],
+      "position": [
+        1040,
+        -420
+      ],
       "id": "inbound-convert-audio",
       "name": "Converter Áudio para Binário"
     },
@@ -216,7 +252,10 @@
       },
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1,
-      "position": [1260, -420],
+      "position": [
+        1260,
+        -420
+      ],
       "id": "inbound-gemini-transcribe",
       "name": "Transcrever Áudio com Gemini",
       "onError": "continueRegularOutput",
@@ -230,11 +269,14 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const meta = $('Extrair Metadados').item.json;\nconst loja = $('Identificar Loja').item.json;\n\n// Se veio transcrição do Gemini, usa ela\nlet conteudoFinal = meta.conteudo;\nif ($input.item.json?.content?.parts?.[0]?.text) {\n  conteudoFinal = $input.item.json.content.parts[0].text.trim();\n}\n\nconst dadosAds = meta.dadosAds || {};\nconst isAd = Boolean(meta.isAd && (dadosAds.adId || dadosAds.adTitulo || dadosAds.adTema));\n\nreturn {\n  json: {\n    loja_id: loja.id,\n    loja_nome: loja.nome,\n    cliente_nome: meta.clientName || 'Contato WhatsApp',\n    cliente_whatsapp: meta.clientPhone,\n    origem: meta.origem,\n    is_ad: isAd,\n    ad_id: dadosAds.adId || '',\n    ad_titulo: dadosAds.adTitulo || '',\n    ad_tema: dadosAds.adTema || '',\n    ad_canal: dadosAds.canal || 'instagram',\n    ctwa_clid: dadosAds.ctwaClid || '',\n    dadosAds: dadosAds,\n    message_id: meta.messageId,\n    direcao: meta.direcao,\n    tipo: meta.tipo,\n    conteudo: conteudoFinal,\n    midia_url: meta.midiaUrl,\n    configs: meta.configs || {}\n  }\n};\n"
+        "jsCode": "const meta = $('Extrair Metadados').item.json;\nconst loja = $('Identificar Loja').item.json;\n\n// Se veio transcrição do Gemini, usa ela\nlet conteudoFinal = meta.conteudo;\nif ($input.item.json?.content?.parts?.[0]?.text) {\n  conteudoFinal = $input.item.json.content.parts[0].text.trim();\n}\n\nconst dadosAds = meta.dadosAds || {};\nconst isAd = Boolean(meta.isAd && (dadosAds.adId || dadosAds.adTitulo || dadosAds.adTema));\n\nreturn {\n  json: {\n    loja_id: loja.id,\n    loja_nome: loja.nome,\n    cliente_nome: meta.direcao === 'outbound' ? '' : (meta.clientName || 'Contato WhatsApp'),\n    cliente_whatsapp: meta.clientPhone,\n    origem: meta.origem,\n    is_ad: isAd,\n    ad_id: dadosAds.adId || '',\n    ad_titulo: dadosAds.adTitulo || '',\n    ad_tema: dadosAds.adTema || '',\n    ad_canal: dadosAds.canal || 'instagram',\n    ctwa_clid: dadosAds.ctwaClid || '',\n    dadosAds: dadosAds,\n    message_id: meta.messageId,\n    direcao: meta.direcao,\n    tipo: meta.tipo,\n    conteudo: conteudoFinal,\n    midia_url: meta.midiaUrl,\n    configs: meta.configs || {}\n  }\n};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1500, -200],
+      "position": [
+        1500,
+        -200
+      ],
       "id": "inbound-prep-persist",
       "name": "Preparar Dados Persistência"
     },
@@ -248,7 +290,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
-      "position": [1720, -200],
+      "position": [
+        1720,
+        -200
+      ],
       "id": "inbound-upsert-criativo",
       "name": "Upsert Criativo se Anúncio",
       "alwaysOutputData": true,
@@ -262,14 +307,17 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO pessoas (\n  loja_id,\n  nome,\n  whatsapp,\n  origem,\n  metadata_json,\n  ultimo_criativo_id,\n  total_mensagens,\n  last_message_at,\n  created_at,\n  updated_at\n)\nVALUES (\n  $1,\n  $2,\n  $3,\n  $4,\n  $5::jsonb,\n  $6::int,\n  1,\n  NOW(),\n  NOW(),\n  NOW()\n)\nON CONFLICT (loja_id, whatsapp) DO UPDATE\nSET \n  nome = COALESCE(NULLIF(EXCLUDED.nome, ''), pessoas.nome),\n  origem = CASE \n    WHEN EXCLUDED.origem IN ('instagram_ads', 'facebook_ads') THEN EXCLUDED.origem \n    ELSE pessoas.origem \n  END,\n  metadata_json = CASE \n    WHEN EXCLUDED.metadata_json != '{}'::jsonb THEN EXCLUDED.metadata_json \n    ELSE pessoas.metadata_json \n  END,\n  ultimo_criativo_id = COALESCE($6::int, pessoas.ultimo_criativo_id),\n  total_mensagens = pessoas.total_mensagens + 1,\n  last_message_at = NOW(),\n  updated_at = NOW()\nRETURNING id, nome, whatsapp, origem, ultimo_criativo_id;\n",
+        "query": "INSERT INTO pessoas (\n  loja_id,\n  nome,\n  whatsapp,\n  origem,\n  metadata_json,\n  ultimo_criativo_id,\n  total_mensagens,\n  last_message_at,\n  created_at,\n  updated_at\n)\nVALUES (\n  $1,\n  COALESCE(NULLIF($2, ''), 'Contato ' || $3),\n  $3,\n  CASE WHEN $7::text = 'outbound' THEN 'organico' ELSE $4 END,\n  CASE WHEN $7::text = 'outbound' THEN '{}'::jsonb ELSE $5::jsonb END,\n  CASE WHEN $7::text = 'outbound' THEN NULL ELSE $6::int END,\n  1,\n  NOW(),\n  NOW(),\n  NOW()\n)\nON CONFLICT (loja_id, whatsapp) DO UPDATE\nSET \n  nome = CASE \n    WHEN $7::text = 'outbound' THEN pessoas.nome \n    ELSE COALESCE(NULLIF(EXCLUDED.nome, ''), pessoas.nome)\n  END,\n  origem = CASE \n    WHEN $7::text = 'outbound' THEN pessoas.origem \n    WHEN EXCLUDED.origem IN ('instagram_ads', 'facebook_ads') THEN EXCLUDED.origem \n    ELSE pessoas.origem \n  END,\n  metadata_json = CASE \n    WHEN $7::text = 'outbound' THEN pessoas.metadata_json \n    WHEN EXCLUDED.metadata_json != '{}'::jsonb THEN EXCLUDED.metadata_json \n    ELSE pessoas.metadata_json \n  END,\n  ultimo_criativo_id = CASE \n    WHEN $7::text = 'outbound' THEN pessoas.ultimo_criativo_id \n    ELSE COALESCE($6::int, pessoas.ultimo_criativo_id)\n  END,\n  total_mensagens = pessoas.total_mensagens + 1,\n  last_message_at = NOW(),\n  updated_at = NOW()\nRETURNING id, nome, whatsapp, origem, ultimo_criativo_id;\n",
         "options": {
-          "queryReplacement": "={{ [\n  $('Preparar Dados Persistência').item.json.loja_id,\n  $('Preparar Dados Persistência').item.json.cliente_nome,\n  $('Preparar Dados Persistência').item.json.cliente_whatsapp,\n  $('Preparar Dados Persistência').item.json.origem,\n  JSON.stringify($('Preparar Dados Persistência').item.json.dadosAds),\n  $json.criativo_id || null\n] }}"
+          "queryReplacement": "={{ [\n  $('Preparar Dados Persistência').item.json.loja_id,\n  $('Preparar Dados Persistência').item.json.cliente_nome,\n  $('Preparar Dados Persistência').item.json.cliente_whatsapp,\n  $('Preparar Dados Persistência').item.json.origem,\n  JSON.stringify($('Preparar Dados Persistência').item.json.dadosAds),\n  $json.criativo_id || null,\n  $('Preparar Dados Persistência').item.json.direcao\n] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
-      "position": [1940, -200],
+      "position": [
+        1940,
+        -200
+      ],
       "id": "inbound-upsert-pessoa",
       "name": "Upsert Contato (Pessoa)",
       "credentials": {
@@ -289,7 +337,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
-      "position": [2160, -200],
+      "position": [
+        2160,
+        -200
+      ],
       "id": "inbound-calc-sla",
       "name": "Calcular SLA se Outbound",
       "alwaysOutputData": true,
@@ -310,7 +361,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
-      "position": [2380, -200],
+      "position": [
+        2380,
+        -200
+      ],
       "id": "inbound-insert-msg",
       "name": "Gravar Mensagem",
       "credentials": {
@@ -330,7 +384,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
-      "position": [2600, -200],
+      "position": [
+        2600,
+        -200
+      ],
       "id": "inbound-update-loja-phone",
       "name": "Atualizar Telefone da Loja se Vazio",
       "alwaysOutputData": true,
@@ -348,7 +405,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2820, -200],
+      "position": [
+        2820,
+        -200
+      ],
       "id": "inbound-resp-ok",
       "name": "Resposta Sucesso"
     }

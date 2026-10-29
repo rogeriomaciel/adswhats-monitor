@@ -13,8 +13,10 @@ sec/
 # Environment variables
 .env
 .env.*
+.env.local
+.env.staging
+.env.production
 !.env.example
-!.env.staging.example
 
 # Logs
 logs/
