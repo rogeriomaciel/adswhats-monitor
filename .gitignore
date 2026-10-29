@@ -6,6 +6,10 @@ dist/
 dist-ssr/
 *.local
 
+# Secrets and private keys
+sec/
+*.pem
+
 # Environment variables
 .env
 .env.*
@@ -27,3 +31,5 @@ pnpm-debug.log*
 *.sw?
 tmp/
 scratch/
+sec/
+*.pem

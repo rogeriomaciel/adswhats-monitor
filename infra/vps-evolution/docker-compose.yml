@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: evolution_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-evolution_db}
+      POSTGRES_USER: ${POSTGRES_USER:-evolution}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evolution_secret_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - evolution_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evolution} -d ${POSTGRES_DB:-evolution_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: evolution_redis
+    restart: always
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-redis_secret_password}", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - evolution_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret_password}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  evolution_api:
+    image: evoapicloud/evolution-api:v2.2.3
+    container_name: evolution_api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      # Exposto APENAS para localhost; o Nginx da VPS faz o proxy reverso seguro
+      - "127.0.0.1:8080:8080"
+    environment:
+      # Configurações do Servidor
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+      SERVER_URL: ${SERVER_URL}
+
+      # Autenticação Global
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${AUTHENTICATION_API_KEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+
+      # Banco de Dados Local (PostgreSQL)
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: "postgresql"
+      DATABASE_CONNECTION_URI: "postgresql://${POSTGRES_USER:-evolution}:${POSTGRES_PASSWORD:-evolution_secret_password}@postgres:5432/${POSTGRES_DB:-evolution_db}?schema=public"
+      DATABASE_CONNECTION_CLIENT_NAME: "evolution_v2"
+
+      # Redis (Filas e Cache de Sessões)
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: "redis://:${REDIS_PASSWORD:-redis_secret_password}@redis:6379/1"
+      CACHE_REDIS_PREFIX_KEY: "evolution"
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+      CACHE_LOCAL_ENABLED: "false"
+
+      # WebSocket (opcional, para painel / realtime)
+      WEBSOCKET_ENABLED: "true"
+      WEBSOCKET_GLOBAL_EVENTS: "true"
+
+      # Nomes de Identificação do Dispositivo no WhatsApp
+      CONFIG_SESSION_PHONE_CLIENT: "AdsWhats"
+      CONFIG_SESSION_PHONE_NAME: "Chrome"
+
+      # Logs
+      LOG_LEVEL: "INFO"
+      LOG_COLOR: "true"
+      LOG_BAILEYS: "error"
+    volumes:
+      - evolution_instances:/evolution/instances
+      - evolution_store:/evolution/store
+    networks:
+      - evolution_network
+
+volumes:
+  postgres_data:
+    name: evolution_postgres_data
+  redis_data:
+    name: evolution_redis_data
+  evolution_instances:
+    name: evolution_instances_data
+  evolution_store:
+    name: evolution_store_data
+
+networks:
+  evolution_network:
+    name: evolution_network
+    driver: bridge
