@@ -51,13 +51,49 @@ git push origin [nome-da-branch-criada]
 
 ---
 
-## 5. Criação do Pull Request (Automático via GitHub CLI)
-Para tornar o fluxo totalmente transparente e profissional, o agente deve tentar criar o Pull Request programaticamente no GitHub:
-1. **GitHub CLI (gh) Autenticado:** Execute o comando abaixo para abrir o PR sem que o usuário precise fazer cliques manuais:
+## 5. Criação do Pull Request com Descrição Detalhada Obrigatória (GitHub CLI)
+Para tornar o histórico de engenharia auditável e transparente, **é estritamente proibido abrir Pull Requests com descrições genéricas de uma linha**.
+
+1. **Estrutura Obrigatória do Corpo (`--body` ou `--body-file`)**:
+   O Pull Request deve conter um Markdown detalhado cobrindo tudo que foi feito na tarefa:
+   - **🎯 Resumo / Objetivo**: Qual problema foi resolvido ou qual funcionalidade foi entregue.
+   - **🛠️ Alterações Realizadas (Por Camada)**:
+     - **Frontend (React / UI / Estado)**: Novas páginas, modais, rotas, otimizações de cache/polling e mudanças visuais.
+     - **Backend / Workflows n8n (`ADSWHATHS*`)**: Workflows criados ou alterados, regras de validação e segurança.
+     - **Banco de Dados / Contratos**: Novas tabelas, colunas, migrations ou tipos TypeScript.
+   - **📚 Documentação Atualizada**: Lista dos arquivos em `docs/` e `README.md` sincronizados.
+   - **✅ Validação**: Confirmação de compilação limpa via `bun run build`.
+
+2. **Comando de Criação via GitHub CLI (`gh`)**:
    ```bash
-   gh pr create --title "[tipo]: descrição clara" --body "Pull Request automático criado pelo agente de IA com documentação 100% atualizada." --base main --head [nome-da-branch]
+   gh pr create \
+     --title "[tipo]: descrição clara e objetiva" \
+     --body "$(cat <<'EOF'
+   ## 🎯 Resumo
+   - Descrição objetiva do que esta entrega resolve.
+
+   ## 🛠️ O que foi feito
+   ### Frontend
+   - Detalhamento das telas, componentes e estados alterados.
+
+   ### Workflows n8n / Backend
+   - Detalhamento dos workflows `ADSWHATHS*` criados ou modificados.
+
+   ### Documentação
+   - Arquivos atualizados em `docs/` e `README.md`.
+
+   ## ✅ Checklist de Validação
+   - [x] Compilação de produção validada (`bun run build` com 0 erros)
+   - [x] Workflows versionados em `agente/workflows/`
+   - [x] Documentação técnica sincronizada
+   EOF
+   )" \
+     --base main \
+     --head [nome-da-branch]
    ```
-2. **Validação do CI no PR:** Ao abrir o PR, a esteira do GitHub Actions rodará o `build-and-test`. Certifique-se de que o check visual esteja verde (`✓`).
+   *(Se utilizar o script `scripts/git_push_automacao.sh`, passe obrigatoriamente a descrição detalhada como 3º argumento, ou atualize o PR via REST API com `gh api repos/:owner/:repo/pulls/:number -X PATCH -F body=@/tmp/pr_body.md`).*
+
+3. **Validação do CI no PR:** Ao abrir o PR, a esteira do GitHub Actions rodará o `build-and-test`. Certifique-se de que o check visual esteja verde (`✓`).
 
 ---
 
