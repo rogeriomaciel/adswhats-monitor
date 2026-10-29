@@ -67,7 +67,7 @@ export default function Dashboard() {
               Olá, {user?.nome || "Operador"}!
             </h1>
             <p className="text-xs md:text-sm text-muted-foreground max-w-xl">
-              Monitore instâncias da Evolution API, capture contatos via webhook e gerencie canais de WhatsApp em escala multi-loja.
+              Monitore lojas e anúncios, capture contatos e gerencie mensagens de WhatsApp em escala multi-lojas.
             </p>
           </div>
 

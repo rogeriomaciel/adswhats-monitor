@@ -29,7 +29,7 @@ export function Navbar() {
                 PRO
               </span>
             </h1>
-            <span className="text-[11px] text-muted-foreground block -mt-0.5">Torre de Gestão Multi-Lojas</span>
+            <span className="text-[11px] text-muted-foreground block -mt-0.5">Gestão de Anúncios</span>
           </div>
         </Link>
 
