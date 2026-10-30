@@ -79,7 +79,7 @@ export function MetricsSLASection({
             Performance de SLA & Atribuição de Criativos
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Tempo de resposta dos atendentes, velocidade de retorno e impacto por anúncio Meta CTWA
+            Tempo de resposta dos atendentes, velocidade de retorno e impacto por anúncio (Meta Ads & Google Ads)
           </p>
         </div>
 
@@ -192,7 +192,7 @@ export function MetricsSLASection({
                   {resumo.total_mensagens_ad}
                 </h3>
                 <span className="text-[11px] text-muted-foreground mt-0.5 block">
-                  CTWA Meta Ads interceptadas
+                  Meta Ads & Google Ads interceptados
                 </span>
               </div>
             </div>
@@ -222,7 +222,7 @@ export function MetricsSLASection({
               <div>
                 <h3 className="text-sm font-bold font-display text-foreground flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-pink-500" />
-                  Métricas por Criativo (Meta Ads / Instagram / Facebook)
+                  Métricas por Criativo & Campanha (Meta Ads / Google Ads)
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   Identificação automática do anúncio que originou a conversa e tempo de resposta da equipe
@@ -238,10 +238,10 @@ export function MetricsSLASection({
               <div className="p-8 rounded-2xl bg-card border border-border text-center space-y-2">
                 <Sparkles className="w-8 h-8 text-muted-foreground mx-auto" />
                 <p className="text-xs text-muted-foreground">
-                  Nenhum anúncio Meta Ads identificado no período selecionado.
+                  Nenhum anúncio ou criativo identificado no período selecionado.
                 </p>
                 <p className="text-[11px] text-muted-foreground/80 max-w-md mx-auto">
-                  Assim que leads clicarem em anúncios no Instagram ou Facebook e enviarem mensagens pelo WhatsApp, os criativos serão listados aqui com SLA e contatos únicos.
+                  Assim que leads clicarem em anúncios no Instagram, Facebook ou Google e enviarem mensagens pelo WhatsApp, as campanhas serão listadas aqui com SLA e contatos únicos.
                 </p>
               </div>
             ) : (
