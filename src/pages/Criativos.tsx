@@ -26,7 +26,7 @@ export default function CriativosPage() {
               Relatório de Criativos & Tempo de Resposta (SLA)
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Análise detalhada de performance por anúncio Meta Ads (Instagram/Facebook CTWA), volume de leads e velocidade de atendimento
+              Análise detalhada de performance por anúncio (Meta Ads & Google Ads), volume de leads e velocidade de atendimento
             </p>
           </div>
         </div>

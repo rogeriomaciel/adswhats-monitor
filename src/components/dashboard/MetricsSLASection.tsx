@@ -43,6 +43,7 @@ export function MetricsSLASection({
   onSelectLojaId,
 }: MetricsSLASectionProps) {
   const [dias, setDias] = useState<number>(30);
+  const [selectedCanal, setSelectedCanal] = useState<string>("todos");
 
   const {
     data,
@@ -69,6 +70,19 @@ export function MetricsSLASection({
   const criativos = data?.por_criativo || [];
   const lojasList = data?.por_loja || [];
 
+  const filteredCriativos = criativos.filter((c) => {
+    if (selectedCanal === "todos") return true;
+    const canal = (c.canal || "").toLowerCase();
+    const isGoogle = canal === "google" || c.ad_id.startsWith("google_");
+    const isFacebook = canal === "facebook";
+    const isInstagram = canal === "instagram" || (!isGoogle && !isFacebook);
+
+    if (selectedCanal === "google") return isGoogle;
+    if (selectedCanal === "instagram") return isInstagram;
+    if (selectedCanal === "facebook") return isFacebook;
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       {/* Header com Filtros de Loja e Período */}
@@ -79,7 +93,7 @@ export function MetricsSLASection({
             Performance de SLA & Atribuição de Criativos
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Tempo de resposta dos atendentes, velocidade de retorno e impacto por anúncio Meta CTWA
+            Tempo de resposta dos atendentes, velocidade de retorno e impacto por anúncio (Meta Ads & Google Ads)
           </p>
         </div>
 
@@ -98,6 +112,21 @@ export function MetricsSLASection({
                   {l.nome}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Seletor de Canal / Origem */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-background text-xs">
+            <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+            <select
+              value={selectedCanal}
+              onChange={(e) => setSelectedCanal(e.target.value)}
+              className="bg-transparent border-none text-foreground font-medium focus:outline-none cursor-pointer"
+            >
+              <option value="todos">Todos os Canais</option>
+              <option value="google">Google Ads</option>
+              <option value="instagram">Instagram Ads</option>
+              <option value="facebook">Facebook Ads</option>
             </select>
           </div>
 
@@ -192,7 +221,7 @@ export function MetricsSLASection({
                   {resumo.total_mensagens_ad}
                 </h3>
                 <span className="text-[11px] text-muted-foreground mt-0.5 block">
-                  CTWA Meta Ads interceptadas
+                  Meta Ads & Google Ads interceptados
                 </span>
               </div>
             </div>
@@ -222,7 +251,7 @@ export function MetricsSLASection({
               <div>
                 <h3 className="text-sm font-bold font-display text-foreground flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-pink-500" />
-                  Métricas por Criativo (Meta Ads / Instagram / Facebook)
+                  Métricas por Criativo & Campanha (Meta Ads / Google Ads)
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   Identificação automática do anúncio que originou a conversa e tempo de resposta da equipe
@@ -230,18 +259,22 @@ export function MetricsSLASection({
               </div>
 
               <span className="text-xs text-muted-foreground font-mono">
-                {criativos.length} criativo(s) ativo(s)
+                {selectedCanal !== "todos"
+                  ? `${filteredCriativos.length} de ${criativos.length} criativo(s)`
+                  : `${criativos.length} criativo(s) ativo(s)`}
               </span>
             </div>
 
-            {criativos.length === 0 ? (
+            {filteredCriativos.length === 0 ? (
               <div className="p-8 rounded-2xl bg-card border border-border text-center space-y-2">
                 <Sparkles className="w-8 h-8 text-muted-foreground mx-auto" />
                 <p className="text-xs text-muted-foreground">
-                  Nenhum anúncio Meta Ads identificado no período selecionado.
+                  {selectedCanal !== "todos"
+                    ? `Nenhum criativo encontrado para o canal selecionado (${selectedCanal.toUpperCase()}).`
+                    : "Nenhum anúncio ou criativo identificado no período selecionado."}
                 </p>
                 <p className="text-[11px] text-muted-foreground/80 max-w-md mx-auto">
-                  Assim que leads clicarem em anúncios no Instagram ou Facebook e enviarem mensagens pelo WhatsApp, os criativos serão listados aqui com SLA e contatos únicos.
+                  Assim que leads clicarem em anúncios no Instagram, Facebook ou Google e enviarem mensagens pelo WhatsApp, as campanhas serão listadas aqui com SLA e contatos únicos.
                 </p>
               </div>
             ) : (
@@ -260,7 +293,7 @@ export function MetricsSLASection({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {criativos.map((c) => {
+                      {filteredCriativos.map((c) => {
                         const isGoogle = c.canal?.toLowerCase() === "google" || c.ad_id.startsWith("google_");
                         const link = c.source_url || (!isGoogle && c.ad_id ? `https://www.facebook.com/ads/library/?id=${c.ad_id}` : null);
 
