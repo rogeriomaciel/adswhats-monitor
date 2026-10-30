@@ -20,6 +20,7 @@ export interface Criativo {
   tema?: string;
   canal?: string;
   media_url?: string;
+  source_url?: string;
   total_mensagens: number;
   total_pessoas_unicas: number;
   total_respondidas?: number;
@@ -43,6 +44,8 @@ export interface Pessoa {
   ultimo_criativo_tema?: string;
   ultimo_criativo_ad_id?: string;
   ultimo_criativo_canal?: string;
+  ultimo_criativo_media_url?: string;
+  ultimo_criativo_source_url?: string;
   tempo_medio_resposta_segundos?: number;
   total_mensagens_ad?: number;
   metadata_json?: {
@@ -78,6 +81,8 @@ export interface Mensagem {
   criativo_titulo?: string;
   criativo_tema?: string;
   criativo_canal?: string;
+  criativo_media_url?: string;
+  criativo_source_url?: string;
   ctwa_clid?: string;
   tempo_resposta_segundos?: number | null;
   respondida_em?: string | null;

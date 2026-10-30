@@ -96,3 +96,27 @@ CREATE TABLE IF NOT EXISTS configs (
     value VARCHAR(255)
 );
 
+-- 7. Tabela de Criativos e Agrupamento de Anúncios (Meta e Google Ads)
+CREATE TABLE IF NOT EXISTS criativos (
+    id SERIAL PRIMARY KEY,
+    loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+    ad_id VARCHAR(100) NOT NULL,
+    titulo VARCHAR(255),
+    tema TEXT,
+    canal VARCHAR(50) DEFAULT 'instagram', -- 'instagram', 'facebook', 'google'
+    media_url TEXT,
+    source_url TEXT,
+    total_mensagens INTEGER DEFAULT 0,
+    total_pessoas_unicas INTEGER DEFAULT 0,
+    primeira_mensagem_at TIMESTAMPTZ DEFAULT NOW(),
+    ultima_mensagem_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_criativos_loja_ad UNIQUE (loja_id, ad_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_criativos_loja_id ON criativos(loja_id);
+CREATE INDEX IF NOT EXISTS idx_criativos_ad_id ON criativos(ad_id);
+CREATE INDEX IF NOT EXISTS idx_criativos_canal ON criativos(canal);
+
+

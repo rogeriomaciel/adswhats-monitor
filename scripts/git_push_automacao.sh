@@ -1,18 +1,19 @@
 #!/bin/bash
 
 # --- AdsWhats Monitor — Git Automation Script ---
-# Uso: bash scripts/git_push_automacao.sh <nome-da-branch> "<mensagem-do-commit>"
+# Uso: bash scripts/git_push_automacao.sh <nome-da-branch> "<mensagem-do-commit>" ["<descricao-detalhada-do-pr>"]
 
-# Exige os dois parâmetros obrigatoriamente
+# Exige ao menos branch e mensagem de commit
 if [ -z "$1" ] || [ -z "$2" ]; then
   echo "❌ Erro: Parâmetros ausentes!"
-  echo "Uso: bash scripts/git_push_automacao.sh <nome-da-branch> \"<mensagem-do-commit>\""
-  echo "Exemplo: bash scripts/git_push_automacao.sh feature/ajuste-sla \"feat: ajusta cálculo de primeiro atendimento\""
+  echo "Uso: bash scripts/git_push_automacao.sh <nome-da-branch> \"<mensagem-do-commit>\" [\"<descricao-detalhada-do-pr>\"]"
+  echo "Exemplo: bash scripts/git_push_automacao.sh feature/ajuste-sla \"feat: ajusta cálculo de primeiro atendimento\" \"## Resumo...\""
   exit 1
 fi
 
 BRANCH_NAME=$1
 COMMIT_MSG=$2
+PR_BODY=${3:-""}
 
 echo "🌳 1. Criando e migrando para a branch secundária: $BRANCH_NAME..."
 git checkout -b "$BRANCH_NAME"
@@ -43,7 +44,17 @@ echo "========================================================================="
 echo "🔍 5. Verificando se o GitHub CLI (gh) está autenticado para criar o PR..."
 if command -v gh &> /dev/null && gh auth status &> /dev/null; then
   echo "🤖 GitHub CLI detectado e autenticado! Criando Pull Request automaticamente..."
-  PR_URL=$(gh pr create --title "$COMMIT_MSG" --body "Pull Request automático criado pelo script de automação." --base main --head "$BRANCH_NAME")
+  if [ -z "$PR_BODY" ]; then
+    CHANGED_FILES=$(git diff --name-status main..."$BRANCH_NAME" | sed 's/^/- `/;s/\t/` → `/;s/$/`/')
+    PR_BODY="## 🎯 Entrega: $COMMIT_MSG
+
+### 📂 Arquivos Alterados
+$CHANGED_FILES
+
+### ✅ Validação
+- [x] Compilação \`bun run build\` executada sem erros."
+  fi
+  PR_URL=$(gh pr create --title "$COMMIT_MSG" --body "$PR_BODY" --base main --head "$BRANCH_NAME")
   if [ $? -eq 0 ]; then
     echo "🎉 Pull Request criado com SUCESSO!"
     echo "🔗 Link do PR: $PR_URL"

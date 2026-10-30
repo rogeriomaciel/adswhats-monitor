@@ -127,3 +127,22 @@ Evita processamento de mensagens duplicadas disparadas por retry de webhook.
 * `payload` (JSONB)
 * `created_at` (TIMESTAMPTZ)
 
+### F. Tabela `criativos` (Agrupamento e Métricas de Anúncios)
+Consolida métricas e agrupadores de campanhas Meta Ads (Instagram/Facebook) e Google Ads.
+* `id` (SERIAL, PK)
+* `loja_id` (INT, FK -> lojas.id)
+* `ad_id` (VARCHAR) — ID do anúncio Meta ou código `google_[termo]`
+* `titulo` (VARCHAR) — Título do criativo ou termo da palavra-chave/cupom
+* `tema` (TEXT) — Descrição/legenda do criativo ou detalhe da conversão
+* `canal` (VARCHAR: `instagram`, `facebook`, `google`)
+* `media_url` (TEXT) — URL da imagem/thumbnail do criativo
+* `source_url` (TEXT) — Link original do anúncio / URL de destino
+* `total_mensagens` (INT, default 0)
+* `total_pessoas_unicas` (INT, default 0)
+* `primeira_mensagem_at` (TIMESTAMPTZ)
+* `ultima_mensagem_at` (TIMESTAMPTZ)
+* `created_at` (TIMESTAMPTZ)
+* `updated_at` (TIMESTAMPTZ)
+* **Índices:** `UNIQUE (loja_id, ad_id)`, `INDEX (loja_id)`, `INDEX (canal)`
+
+

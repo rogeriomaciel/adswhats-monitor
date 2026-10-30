@@ -15,6 +15,7 @@ import {
   Loader2,
   RefreshCw,
   MessageSquare,
+  Search,
 } from "lucide-react";
 
 interface ChatModalProps {
@@ -97,7 +98,13 @@ export function ChatModal({ isOpen, onClose, contato }: ChatModalProps) {
 
   const isInstagram = contato.origem === "instagram_ads";
   const isFacebook = contato.origem === "facebook_ads";
-  const isAd = isInstagram || isFacebook || ads?.isAd;
+  const isGoogle = contato.origem === "google_ads" || ads?.canal === "google" || contato.ultimo_criativo_canal === "google";
+  const isAd = isInstagram || isFacebook || isGoogle || ads?.isAd;
+
+  const adThumbnail = contato.ultimo_criativo_media_url || ads?.mediaUrl;
+  const adLink = contato.ultimo_criativo_source_url || ads?.sourceUrl || (!isGoogle && (contato.ultimo_criativo_ad_id || ads?.adId) ? `https://www.facebook.com/ads/library/?id=${contato.ultimo_criativo_ad_id || ads?.adId}` : null);
+  const adTitle = contato.ultimo_criativo_titulo || ads?.adTitulo || (isGoogle ? "Anúncio Google Ads" : "Anúncio Meta");
+  const adTema = contato.ultimo_criativo_tema || ads?.adTema;
 
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 overflow-hidden animate-in fade-in duration-200">
@@ -148,26 +155,58 @@ export function ChatModal({ isOpen, onClose, contato }: ChatModalProps) {
           </div>
         </div>
 
-        {/* Ad Attribution Banner (if contact originated from Meta Ads) */}
+        {/* Ad Attribution Banner (Meta Ads ou Google Ads) */}
         {isAd && (
-          <div className="px-6 py-3 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-primary/10 border-b border-border/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-700 dark:text-pink-300 font-semibold text-[11px]">
-                <Sparkles className="w-3 h-3" />
-                {isInstagram ? "Instagram Ads" : "Facebook Ads"}
+          <div className="px-6 py-2.5 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-primary/10 border-b border-border/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {adThumbnail && (
+                <img
+                  src={adThumbnail}
+                  alt={adTitle}
+                  className="w-8 h-8 rounded-md object-cover border border-border shrink-0 shadow-xs"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = "none";
+                  }}
+                />
+              )}
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold text-[11px] shrink-0 ${
+                  isGoogle
+                    ? "bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30"
+                    : isFacebook
+                    ? "bg-blue-600/20 text-blue-700 dark:text-blue-400 border border-blue-600/30"
+                    : "bg-pink-500/20 text-pink-700 dark:text-pink-300 border border-pink-500/30"
+                }`}
+              >
+                {isGoogle ? <Search className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
+                {isGoogle ? "Google Ads" : isFacebook ? "Facebook Ads" : "Instagram Ads"}
               </span>
-              {ads?.adTitulo && (
+              {adTitle && (
                 <span className="font-semibold text-foreground truncate max-w-xs md:max-w-md">
-                  Campanha: {ads.adTitulo}
+                  {adTitle}
                 </span>
               )}
             </div>
 
-            {ads?.adTema && (
-              <span className="text-[11px] text-muted-foreground italic truncate max-w-sm hidden sm:inline">
-                &ldquo;{ads.adTema}&rdquo;
-              </span>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {adTema && (
+                <span className="text-[11px] text-muted-foreground italic truncate max-w-xs hidden lg:inline">
+                  &ldquo;{adTema}&rdquo;
+                </span>
+              )}
+
+              {adLink && (
+                <a
+                  href={adLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-background/80 hover:bg-background text-foreground text-[11px] font-medium border border-border shadow-2xs transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3 text-primary" />
+                  <span>Ver Anúncio</span>
+                </a>
+              )}
+            </div>
           </div>
         )}
 
