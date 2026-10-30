@@ -16,6 +16,8 @@ import {
   MessageSquare,
   RefreshCw,
   Loader2,
+  ExternalLink,
+  Search,
 } from "lucide-react";
 
 interface MetricsSLASectionProps {
@@ -253,66 +255,121 @@ export function MetricsSLASection({
                         <th className="py-3 px-4 text-center">Mensagens</th>
                         <th className="py-3 px-4 text-center">Leads Únicos</th>
                         <th className="py-3 px-4 text-center">SLA Médio</th>
+                        <th className="py-3 px-4 text-center">Link / Anúncio</th>
                         <th className="py-3 px-4 text-right">Última Mensagem</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {criativos.map((c) => (
-                        <tr key={c.criativo_id || c.ad_id} className="hover:bg-muted/30 transition-colors">
-                          <td className="py-3 px-4 max-w-sm">
-                            <div className="space-y-0.5">
-                              <p className="font-bold text-foreground text-xs leading-snug">
-                                {c.titulo || `Anúncio #${c.ad_id}`}
-                              </p>
-                              {c.tema && (
-                                <p className="text-[10px] text-muted-foreground truncate" title={c.tema}>
-                                  {c.tema}
-                                </p>
+                      {criativos.map((c) => {
+                        const isGoogle = c.canal?.toLowerCase() === "google" || c.ad_id.startsWith("google_");
+                        const link = c.source_url || (!isGoogle && c.ad_id ? `https://www.facebook.com/ads/library/?id=${c.ad_id}` : null);
+
+                        return (
+                          <tr key={c.criativo_id || c.ad_id} className="hover:bg-muted/30 transition-colors">
+                            <td className="py-3 px-4 max-w-sm">
+                              <div className="flex items-center gap-3">
+                                {c.media_url ? (
+                                  <img
+                                    src={c.media_url}
+                                    alt={c.titulo || "Criativo"}
+                                    className="w-10 h-10 rounded-lg object-cover border border-border shrink-0 shadow-xs"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-muted-foreground border border-border/60">
+                                    {isGoogle ? <Search className="w-4 h-4 text-blue-500" /> : <Sparkles className="w-4 h-4 opacity-60" />}
+                                  </div>
+                                )}
+                                <div className="space-y-0.5 min-w-0">
+                                  <p className="font-bold text-foreground text-xs leading-snug truncate">
+                                    {c.titulo || `Anúncio #${c.ad_id}`}
+                                  </p>
+                                  {c.tema && (
+                                    <p className="text-[10px] text-muted-foreground truncate" title={c.tema}>
+                                      {c.tema}
+                                    </p>
+                                  )}
+                                  <span className="text-[9px] font-mono text-muted-foreground/75">
+                                    {c.ad_id.startsWith("google_")
+                                      ? `Termo: ${c.ad_id.replace("google_", "")}`
+                                      : `Ad ID: ${c.ad_id}`}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              {isGoogle ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                                  <Search className="w-2.5 h-2.5" />
+                                  GOOGLE ADS
+                                </span>
+                              ) : c.canal?.toLowerCase() === "facebook" ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-600/10 text-blue-700 dark:text-blue-400 border border-blue-600/20">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  FACEBOOK
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  {c.canal?.toUpperCase() || "INSTAGRAM"}
+                                </span>
                               )}
-                              <span className="text-[9px] font-mono text-muted-foreground/75">
-                                Ad ID: {c.ad_id}
+                            </td>
+
+                            <td className="py-3 px-4 text-center">
+                              <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
+                                {c.total_mensagens || 0}
                               </span>
-                            </div>
-                          </td>
+                            </td>
 
-                          <td className="py-3 px-4">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20">
-                              <Sparkles className="w-2.5 h-2.5" />
-                              {c.canal?.toUpperCase() || "INSTAGRAM"}
-                            </span>
-                          </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">
+                                {c.total_pessoas_unicas || 0}
+                              </span>
+                            </td>
 
-                          <td className="py-3 px-4 text-center">
-                            <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
-                              {c.total_mensagens || 0}
-                            </span>
-                          </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-muted text-foreground font-mono font-bold text-[11px]">
+                                <Clock className="w-3 h-3 text-muted-foreground" />
+                                {formatSLA(c.tempo_medio_segundos)}
+                              </span>
+                            </td>
 
-                          <td className="py-3 px-4 text-center">
-                            <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">
-                              {c.total_pessoas_unicas || 0}
-                            </span>
-                          </td>
+                            <td className="py-3 px-4 text-center">
+                              {link ? (
+                                <a
+                                  href={link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                                  title={c.source_url ? "Abrir Link de Origem" : "Ver na Biblioteca de Anúncios da Meta"}
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  {c.source_url ? "Ver Link" : "Ad Library"}
+                                </a>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground/75 font-mono">
+                                  {isGoogle ? "Cupom" : "-"}
+                                </span>
+                              )}
+                            </td>
 
-                          <td className="py-3 px-4 text-center">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-muted text-foreground font-mono font-bold text-[11px]">
-                              <Clock className="w-3 h-3 text-muted-foreground" />
-                              {formatSLA(c.tempo_medio_segundos)}
-                            </span>
-                          </td>
-
-                          <td className="py-3 px-4 text-right text-muted-foreground text-[11px]">
-                            {c.ultima_mensagem_at
-                              ? new Date(c.ultima_mensagem_at).toLocaleDateString("pt-BR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "-"}
-                          </td>
-                        </tr>
-                      ))}
+                            <td className="py-3 px-4 text-right text-muted-foreground text-[11px]">
+                              {c.ultima_mensagem_at
+                                ? new Date(c.ultima_mensagem_at).toLocaleDateString("pt-BR", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "-"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

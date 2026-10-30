@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Loja, DadosDaLoja, EvolutionConfig, EvolutionState } from "@/types/loja";
 import { saveLoja, callEvolutionApi } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
   X,
@@ -22,6 +23,7 @@ import {
   Mail,
   Clock,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 
 interface LojaModalProps {
@@ -33,6 +35,8 @@ interface LojaModalProps {
 }
 
 export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral" }: LojaModalProps) {
+  const { user } = useAuth();
+  const isAdmin = (user?.role || "admin").toLowerCase() === "admin";
   const [activeTab, setActiveTab] = useState<"geral" | "social" | "localizacao" | "evolution">(initialTab);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -40,6 +44,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
   const [nome, setNome] = useState("");
   const [whatsappLoja, setWhatsappLoja] = useState("");
   const [ativo, setAtivo] = useState(true);
+  const [googleAdsKeywords, setGoogleAdsKeywords] = useState("");
 
   // Dados da Loja
   const [email, setEmail] = useState("");
@@ -81,6 +86,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
       setNome(loja.nome || "");
       setWhatsappLoja(loja.whatsapp_loja || "");
       setAtivo(loja.ativo ?? true);
+      setGoogleAdsKeywords(loja.config_json?.google_ads_keywords || "");
 
       const dados = loja.config_json?.dadosDaLoja || ({} as DadosDaLoja);
       setEmail(dados.email || "");
@@ -289,6 +295,11 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!loja?.id && !isAdmin) {
+      toast.error("Apenas administradores podem cadastrar novas lojas.");
+      return;
+    }
+
     if (!nome.trim()) {
       toast.error("O nome da loja é obrigatório.");
       setActiveTab("geral");
@@ -305,6 +316,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
         nome: nome.trim(),
         whatsapp_loja: formattedPhone,
         ativo,
+        google_ads_keywords: googleAdsKeywords.trim(),
         dadosDaLoja: {
           nome: nome.trim(),
           whatsapp_loja: formattedPhone,
@@ -515,6 +527,32 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
                       placeholder="https://sualoja.com.br"
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-lg border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Rastreio Google Ads & Cupons */}
+              <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-2.5">
+                <div>
+                  <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-primary" />
+                    Palavras-chave de Anúncios Google (Cupons / Rastreamento)
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Identifique automaticamente conversões do Google Ads sem precisar de scripts na Landing Page.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <textarea
+                    rows={2}
+                    value={googleAdsKeywords}
+                    onChange={(e) => setGoogleAdsKeywords(e.target.value)}
+                    placeholder="Ex: CUPOM10, VIM PELO GOOGLE, DESCONTO SITE, PROMO GOOGLE"
+                    className="w-full px-3.5 py-2 rounded-lg border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono transition-all"
+                  />
+                  <div className="text-[10px] text-muted-foreground bg-muted/60 p-2.5 rounded-lg leading-relaxed">
+                    💡 <strong>Dica de uso:</strong> Sugira ao cliente colocar no botão do WhatsApp da Landing Page uma mensagem contendo cupons ou códigos (ex: <em>"Olá, vim pelo cupom CUPOM10"</em> ou <em>"Olá! Vim pelo Google"</em>). Separe múltiplos termos por vírgula.
                   </div>
                 </div>
               </div>

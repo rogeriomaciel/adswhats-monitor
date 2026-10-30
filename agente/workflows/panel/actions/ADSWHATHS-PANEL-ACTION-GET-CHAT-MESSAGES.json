@@ -29,7 +29,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  p.id,\n  p.loja_id,\n  l.nome AS loja_nome,\n  p.nome,\n  p.whatsapp,\n  p.picture_url,\n  p.status,\n  p.origem,\n  p.ultimo_criativo_id,\n  cr.titulo AS ultimo_criativo_titulo,\n  cr.tema AS ultimo_criativo_tema,\n  cr.ad_id AS ultimo_criativo_ad_id,\n  cr.canal AS ultimo_criativo_canal,\n  p.metadata_json,\n  p.total_mensagens,\n  p.last_message_at,\n  p.created_at\nFROM pessoas p\nJOIN lojas l ON l.id = p.loja_id\nLEFT JOIN criativos cr ON cr.id = p.ultimo_criativo_id\nWHERE p.id = $1\nLIMIT 1;\n",
+        "query": "SELECT \n  p.id,\n  p.loja_id,\n  l.nome AS loja_nome,\n  p.nome,\n  p.whatsapp,\n  p.picture_url,\n  p.status,\n  p.origem,\n  p.ultimo_criativo_id,\n  cr.titulo AS ultimo_criativo_titulo,\n  cr.tema AS ultimo_criativo_tema,\n  cr.ad_id AS ultimo_criativo_ad_id,\n  cr.canal AS ultimo_criativo_canal,\n  cr.media_url AS ultimo_criativo_media_url,\n  cr.source_url AS ultimo_criativo_source_url,\n  p.metadata_json,\n  p.total_mensagens,\n  p.last_message_at,\n  p.created_at\nFROM pessoas p\nJOIN lojas l ON l.id = p.loja_id\nLEFT JOIN criativos cr ON cr.id = p.ultimo_criativo_id\nWHERE p.id = $1\nLIMIT 1;\n",
         "options": {
           "queryReplacement": "={{ [$json.pessoaId] }}"
         }
@@ -52,7 +52,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  m.id,\n  m.loja_id,\n  m.pessoa_id,\n  m.message_id,\n  m.direcao,\n  m.tipo,\n  m.conteudo,\n  m.midia_url,\n  m.status_entrega,\n  m.is_ad,\n  m.criativo_id,\n  cr.ad_id AS criativo_ad_id,\n  cr.titulo AS criativo_titulo,\n  cr.tema AS criativo_tema,\n  cr.canal AS criativo_canal,\n  m.ctwa_clid,\n  m.tempo_resposta_segundos,\n  m.respondida_em,\n  m.respondida_por_mensagem_id,\n  m.metadata_json,\n  m.timestamp_mensagem,\n  m.created_at\nFROM mensagens m\nLEFT JOIN criativos cr ON cr.id = m.criativo_id\nWHERE m.pessoa_id = $1\n  AND ($2::int IS NULL OR m.loja_id = $2::int)\nORDER BY m.created_at ASC;\n",
+        "query": "SELECT \n  m.id,\n  m.loja_id,\n  m.pessoa_id,\n  m.message_id,\n  m.direcao,\n  m.tipo,\n  m.conteudo,\n  m.midia_url,\n  m.status_entrega,\n  m.is_ad,\n  m.criativo_id,\n  cr.ad_id AS criativo_ad_id,\n  cr.titulo AS criativo_titulo,\n  cr.tema AS criativo_tema,\n  cr.canal AS criativo_canal,\n  cr.media_url AS criativo_media_url,\n  cr.source_url AS criativo_source_url,\n  m.ctwa_clid,\n  m.tempo_resposta_segundos,\n  m.respondida_em,\n  m.respondida_por_mensagem_id,\n  m.metadata_json,\n  m.timestamp_mensagem,\n  m.created_at\nFROM mensagens m\nLEFT JOIN criativos cr ON cr.id = m.criativo_id\nWHERE m.pessoa_id = $1\n  AND ($2::int IS NULL OR m.loja_id = $2::int)\nORDER BY m.created_at ASC;\n",
         "options": {
           "queryReplacement": "={{ [$('Preparar Parametros').item.json.pessoaId, $('Preparar Parametros').item.json.lojaId] }}"
         }

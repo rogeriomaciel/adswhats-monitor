@@ -102,7 +102,7 @@ export default function ContatosPage() {
   });
 
   const totalContatos = contatos.length;
-  const leadsAds = contatos.filter((c) => c.origem === "instagram_ads" || c.origem === "facebook_ads").length;
+  const leadsAds = contatos.filter((c) => c.origem === "instagram_ads" || c.origem === "facebook_ads" || c.origem === "google_ads").length;
   const leadsOrganicos = contatos.filter((c) => c.origem === "organico" || !c.origem).length;
   const totalMensagens = contatos.reduce((acc, c) => acc + (c.total_mensagens || 0), 0);
 
@@ -218,6 +218,7 @@ export default function ContatosPage() {
                 className="w-full px-3 py-1.5 rounded-xl border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="todos">Todas as Origens</option>
+                <option value="google_ads">Google Ads</option>
                 <option value="instagram_ads">Instagram Ads</option>
                 <option value="facebook_ads">Facebook Ads</option>
                 <option value="organico">Orgânico</option>
@@ -286,9 +287,10 @@ export default function ContatosPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {contatos.map((contato) => {
+                    const isGoogle = contato.origem === "google_ads" || contato.ultimo_criativo_canal === "google" || contato.metadata_json?.canal === "google";
                     const isInstagram = contato.origem === "instagram_ads";
                     const isFacebook = contato.origem === "facebook_ads";
-                    const isAd = isInstagram || isFacebook;
+                    const isAd = isGoogle || isInstagram || isFacebook || Boolean(contato.metadata_json?.isAd);
 
                     return (
                       <tr
@@ -324,10 +326,22 @@ export default function ContatosPage() {
                         <td className="py-3 px-4">
                           {isAd ? (
                             <div className="space-y-0.5">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20">
-                                <Sparkles className="w-2.5 h-2.5" />
-                                {contato.ultimo_criativo_canal?.toUpperCase() || (isInstagram ? "INSTAGRAM" : "FACEBOOK")} ADS
-                              </span>
+                              {isGoogle ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                                  <Search className="w-2.5 h-2.5" />
+                                  GOOGLE ADS
+                                </span>
+                              ) : isFacebook ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-600/10 text-blue-700 dark:text-blue-400 border border-blue-600/20">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  FACEBOOK ADS
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  INSTAGRAM ADS
+                                </span>
+                              )}
                               {(contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo) && (
                                 <p className="text-[10px] font-medium text-foreground truncate max-w-[190px]" title={contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo}>
                                   {contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo}
@@ -393,9 +407,10 @@ export default function ContatosPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {contatos.map((contato) => {
+              const isGoogle = contato.origem === "google_ads" || contato.ultimo_criativo_canal === "google" || contato.metadata_json?.canal === "google";
               const isInstagram = contato.origem === "instagram_ads";
               const isFacebook = contato.origem === "facebook_ads";
-              const isAd = isInstagram || isFacebook;
+              const isAd = isGoogle || isInstagram || isFacebook || Boolean(contato.metadata_json?.isAd);
 
               return (
                 <div
@@ -429,10 +444,22 @@ export default function ContatosPage() {
                     <div className="pt-3 border-t border-border/60 space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         {isAd ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20">
-                            <Sparkles className="w-2.5 h-2.5" />
-                            {contato.ultimo_criativo_canal?.toUpperCase() || (isInstagram ? "INSTAGRAM" : "FACEBOOK")} ADS
-                          </span>
+                          isGoogle ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                              <Search className="w-2.5 h-2.5" />
+                              GOOGLE ADS
+                            </span>
+                          ) : isFacebook ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-600/10 text-blue-700 dark:text-blue-400 border border-blue-600/20">
+                              <Sparkles className="w-2.5 h-2.5" />
+                              FACEBOOK ADS
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20">
+                              <Sparkles className="w-2.5 h-2.5" />
+                              INSTAGRAM ADS
+                            </span>
+                          )
                         ) : (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
                             Orgânico

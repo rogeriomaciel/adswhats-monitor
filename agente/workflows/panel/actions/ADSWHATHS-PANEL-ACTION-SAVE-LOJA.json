@@ -15,7 +15,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const itemJson = $input.item.json || {};\nconst input = itemJson.body || itemJson.payload || itemJson;\nconst configs = itemJson.configs || input.configs || {};\nconst isUpdate = Boolean(input.id);\n\nconst nome = (input.nome || input.dadosDaLoja?.nome || '').trim();\nif (!nome) {\n  throw new Error('O nome da loja é obrigatório.');\n}\n\nconst rawWhatsapp = (input.whatsapp_loja || input.dadosDaLoja?.whatsapp_loja || '').replace(/\\D/g, '');\nconst whatsapp_loja = rawWhatsapp ? (rawWhatsapp.startsWith('55') ? rawWhatsapp : ('55' + rawWhatsapp)) : '';\nconst ativo = input.ativo !== undefined ? input.ativo : true;\n\n// Monta dadosDaLoja\nconst dadosDaLoja = {\n  nome: nome,\n  whatsapp_loja: whatsapp_loja,\n  email: input.dadosDaLoja?.email || '',\n  site: input.dadosDaLoja?.site || '',\n  endereco: input.dadosDaLoja?.endereco || '',\n  linkGoogleMaps: input.dadosDaLoja?.linkGoogleMaps || '',\n  instagram: input.dadosDaLoja?.instagram || '',\n  facebook: input.dadosDaLoja?.facebook || '',\n  horarioDeFuncionamento: input.dadosDaLoja?.horarioDeFuncionamento || {\n    'seg-sex': '08:00 às 18:00',\n    'sab': '08:00 às 12:00',\n    'domingo': 'Fechado'\n  }\n};\n\nconst defaultEvolutionUrl = (configs.evolution_api_url || '').replace(/\\/+$/, '');\nconst defaultEvolutionKey = (configs.evolution_api_key || '').trim();\nlet defaultWebhookUrl = (configs.evolution_webhook_url || '').trim();\nif (defaultWebhookUrl && !defaultWebhookUrl.includes('/app/')) {\n  defaultWebhookUrl = defaultWebhookUrl.replace('/adswhatsinbound', '/app/adswhatsinbound');\n}\n\nlet instanceName = (input.evolutionapi?.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = input.id ? `loja-${input.id}` : '';\n}\n\nlet apiUrl = (input.evolutionapi?.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nlet apikey = (input.evolutionapi?.apikey || '').trim();\nif (!apikey) {\n  apikey = defaultEvolutionKey;\n}\n\nlet webhookUrl = (input.evolutionapi?.webhookUrl || '').trim();\nif (!webhookUrl || !webhookUrl.includes('/app/')) {\n  webhookUrl = defaultWebhookUrl;\n}\n\nconst evolutionapi = {\n  instanceName,\n  apikey,\n  apiUrl,\n  webhookUrl\n};\n\nconst config_json = {\n  dadosDaLoja,\n  evolutionapi\n};\n\n$input.item.json = {\n  id: input.id || null,\n  isUpdate,\n  nome,\n  whatsapp_loja,\n  ativo,\n  config_json,\n  configs\n};\n\nreturn $input.item;"
+        "jsCode": "const itemJson = $input.item.json || {};\nconst input = itemJson.body || itemJson.payload || itemJson;\nconst configs = itemJson.configs || input.configs || {};\nconst authUser = itemJson.user || {};\nconst userRole = String(authUser.role || 'admin').toLowerCase().trim();\nconst isUpdate = Boolean(input.id);\n\nif (!isUpdate && userRole !== 'admin') {\n  return {\n    json: {\n      valid: false,\n      errorMessage: 'Acesso negado: apenas administradores podem cadastrar novas lojas.'\n    }\n  };\n}\n\nconst nome = (input.nome || input.dadosDaLoja?.nome || '').trim();\nif (!nome) {\n  return {\n    json: {\n      valid: false,\n      errorMessage: 'O nome da loja é obrigatório.'\n    }\n  };\n}\n\nconst rawWhatsapp = (input.whatsapp_loja || input.dadosDaLoja?.whatsapp_loja || '').replace(/\\D/g, '');\nconst whatsapp_loja = rawWhatsapp ? (rawWhatsapp.startsWith('55') ? rawWhatsapp : ('55' + rawWhatsapp)) : '';\nconst ativo = input.ativo !== undefined ? input.ativo : true;\n\n// Monta dadosDaLoja\nconst dadosDaLoja = {\n  nome: nome,\n  whatsapp_loja: whatsapp_loja,\n  email: input.dadosDaLoja?.email || '',\n  site: input.dadosDaLoja?.site || '',\n  endereco: input.dadosDaLoja?.endereco || '',\n  linkGoogleMaps: input.dadosDaLoja?.linkGoogleMaps || '',\n  instagram: input.dadosDaLoja?.instagram || '',\n  facebook: input.dadosDaLoja?.facebook || '',\n  horarioDeFuncionamento: input.dadosDaLoja?.horarioDeFuncionamento || {\n    'seg-sex': '08:00 às 18:00',\n    'sab': '08:00 às 12:00',\n    'domingo': 'Fechado'\n  }\n};\n\nconst defaultEvolutionUrl = (configs.evolution_api_url || '').replace(/\\/+$/, '');\nconst defaultEvolutionKey = (configs.evolution_api_key || '').trim();\nlet defaultWebhookUrl = (configs.evolution_webhook_url || '').trim();\nif (defaultWebhookUrl && !defaultWebhookUrl.includes('/app/')) {\n  defaultWebhookUrl = defaultWebhookUrl.replace('/adswhatsinbound', '/app/adswhatsinbound');\n}\n\nlet instanceName = (input.evolutionapi?.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = input.id ? `loja-${input.id}` : '';\n}\n\nlet apiUrl = (input.evolutionapi?.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nlet apikey = (input.evolutionapi?.apikey || '').trim();\nif (!apikey) {\n  apikey = defaultEvolutionKey;\n}\n\nlet webhookUrl = (input.evolutionapi?.webhookUrl || '').trim();\nif (!webhookUrl || !webhookUrl.includes('/app/')) {\n  webhookUrl = defaultWebhookUrl;\n}\n\nconst evolutionapi = {\n  instanceName,\n  apikey,\n  apiUrl,\n  webhookUrl\n};\n\nconst google_ads_keywords = (input.google_ads_keywords || input.config_json?.google_ads_keywords || '').trim();\n\nconst config_json = {\n  dadosDaLoja,\n  evolutionapi,\n  google_ads_keywords\n};\n\n$input.item.json = {\n  valid: true,\n  id: input.id || null,\n  isUpdate,\n  nome,\n  whatsapp_loja,\n  ativo,\n  config_json,\n  configs\n};\n\nreturn $input.item;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -25,6 +25,40 @@
       ],
       "id": "save-loja-prep",
       "name": "Preparar Dados Loja"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.valid }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -370,
+        0
+      ],
+      "id": "save-loja-if-valid",
+      "name": "Dados Válidos?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  json: {\n    ok: false,\n    message: $input.item.json.errorMessage || 'Operação não permitida.'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        240
+      ],
+      "id": "save-loja-err-valid",
+      "name": "Retornar Erro Validação"
     },
     {
       "parameters": {
@@ -312,7 +346,25 @@
       "main": [
         [
           {
+            "node": "Dados Válidos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados Válidos?": {
+      "main": [
+        [
+          {
             "node": "É Atualização?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retornar Erro Validação",
             "type": "main",
             "index": 0
           }

@@ -27,6 +27,7 @@ export interface EvolutionConfig {
 export interface LojaConfig {
   dadosDaLoja?: DadosDaLoja;
   evolutionapi?: EvolutionConfig;
+  google_ads_keywords?: string;
 }
 
 export interface Loja {

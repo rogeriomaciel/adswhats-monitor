@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getLojas } from "@/lib/api";
 import { Loja } from "@/types/loja";
+import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { LojaModal } from "@/components/lojas/LojaModal";
 import {
@@ -42,6 +43,8 @@ function formatPhone(phone: string) {
 }
 
 export default function LojasPage() {
+  const { user } = useAuth();
+  const isAdmin = (user?.role || "admin").toLowerCase() === "admin";
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -82,6 +85,10 @@ export default function LojasPage() {
   const totalMensagens = lojas.reduce((acc, l) => acc + (l.total_mensagens || 0), 0);
 
   const handleNovaLoja = () => {
+    if (!isAdmin) {
+      toast.error("Apenas administradores podem cadastrar novas lojas.");
+      return;
+    }
     setSelectedLoja(null);
     setModalTab("geral");
     setIsModalOpen(true);
@@ -136,13 +143,15 @@ export default function LojasPage() {
               <RefreshCw className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
             </button>
 
-            <button
-              onClick={handleNovaLoja}
-              className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold flex items-center gap-2 shadow-sm transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Nova Loja
-            </button>
+            {isAdmin && (
+              <button
+                onClick={handleNovaLoja}
+                className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold flex items-center gap-2 shadow-sm transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Nova Loja
+              </button>
+            )}
           </div>
         </div>
 
@@ -255,7 +264,7 @@ export default function LojasPage() {
                   : "Comece cadastrando a primeira loja gerenciada para habilitar a conexão da Evolution API e recepção de contatos."}
               </p>
             </div>
-            {!searchTerm && (
+            {!searchTerm && isAdmin && (
               <button
                 onClick={handleNovaLoja}
                 className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold inline-flex items-center gap-2 shadow-sm"
