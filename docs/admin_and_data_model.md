@@ -76,6 +76,8 @@ Usuários do sistema não pertencem a uma loja específica. São os operadores e
 * `created_at` (TIMESTAMPTZ)
 * `ultimo_login` (TIMESTAMPTZ)
 
+> **Nota de Segurança / Ocultação**: O usuário com `id = 1` (super-admin fundador) é omitido da listagem operacional retornada pelo endpoint `ADSWHATHS-PANEL-ACTION-GET-USERS` (`WHERE u.id != 1`), evitando exposição ou edição indevida no painel.
+
 ### B. Tabela `lojas` (Lojas Clientes Gerenciadas)
 Representa as lojas monitoradas pela plataforma.
 * `id` (SERIAL, PK)
