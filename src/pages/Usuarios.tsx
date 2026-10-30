@@ -52,7 +52,7 @@ export default function UsuariosPage() {
   const currentUserId = currentUser?.user_id || currentUser?.id;
 
   const {
-    data: usuarios = [],
+    data: allUsuarios = [],
     isLoading,
     isRefetching,
     refetch,
@@ -60,6 +60,11 @@ export default function UsuariosPage() {
     queryKey: ["usuarios"],
     queryFn: getUsuarios,
   });
+
+  // Oculta o usuário master/superadmin (ID 1 / rogerio@alvoestrategia.com.br) da listagem visual da tela
+  const usuarios = allUsuarios.filter(
+    (u) => Number(u.id) !== 1 && (u.email || "").toLowerCase().trim() !== "rogerio@alvoestrategia.com.br"
+  );
 
   const filteredUsuarios = usuarios.filter((u) => {
     const term = searchTerm.toLowerCase();
