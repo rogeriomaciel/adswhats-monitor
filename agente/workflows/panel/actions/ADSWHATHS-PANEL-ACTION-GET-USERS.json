@@ -49,7 +49,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  u.id,\n  u.nome,\n  u.email,\n  u.whatsapp,\n  u.avatar_url,\n  COALESCE(u.role, 'operador') AS role,\n  COALESCE(u.ativo, true) AS ativo,\n  (to_jsonb(u)->>'created_at') AS created_at,\n  (to_jsonb(u)->>'ultimo_login') AS ultimo_login\nFROM usuarios u\nORDER BY u.id ASC;\n"
+        "query": "SELECT \n  u.id,\n  u.nome,\n  u.email,\n  u.whatsapp,\n  u.avatar_url,\n  COALESCE(u.role, 'operador') AS role,\n  COALESCE(u.ativo, true) AS ativo,\n  (to_jsonb(u)->>'created_at') AS created_at,\n  (to_jsonb(u)->>'ultimo_login') AS ultimo_login\nFROM usuarios u\nWHERE u.id != 1\nORDER BY u.id ASC;\n"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
