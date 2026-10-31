@@ -28,6 +28,8 @@ export interface Criativo {
   primeira_mensagem_at?: string;
   ultima_mensagem_at?: string;
   created_at?: string;
+  conversas_profundas?: number;
+  curiosos_1msg?: number;
 }
 
 export interface Pessoa {
@@ -110,21 +112,49 @@ export interface ResumoMetricasSLA {
   tempo_medio_segundos: number;
   tempo_mediano_segundos: number;
   taxa_resposta_pct: number;
+  leads_esfriando?: number;
+  leads_ad_sem_resposta?: number;
+  total_leads_ad?: number;
+}
+
+export interface LojaPerformance {
+  loja_id: number;
+  loja_nome: string;
+  total_mensagens: number;
+  total_pessoas: number;
+  total_ads: number;
+  total_respondidas: number;
+  total_pendentes?: number;
+  leads_esfriando?: number;
+  tempo_medio_segundos: number;
+  taxa_resposta_pct?: number;
+  score_saude?: number;
+}
+
+export interface PessoaAudit {
+  pessoa_id: number;
+  loja_id: number;
+  loja_nome: string;
+  nome?: string;
+  whatsapp: string;
+  origem: string;
+  ultimo_criativo_titulo?: string;
+  ultimo_criativo_ad_id?: string;
+  ultimo_criativo_media_url?: string;
+  ultimo_criativo_canal?: string;
+  total_mensagens: number;
+  total_pendentes?: number;
+  leads_esfriando?: number;
+  tempo_medio_segundos: number;
+  ultima_mensagem_at?: string;
+  created_at?: string;
 }
 
 export interface MetricasSLAResponse {
   ok: boolean;
   resumo: ResumoMetricasSLA;
   por_criativo: Criativo[];
-  por_loja: {
-    loja_id: number;
-    loja_nome: string;
-    total_mensagens: number;
-    total_pessoas: number;
-    total_ads: number;
-    total_respondidas: number;
-    tempo_medio_segundos: number;
-  }[];
+  por_loja: LojaPerformance[];
   por_periodo: {
     dia: string;
     total_inbound: number;
@@ -132,17 +162,5 @@ export interface MetricasSLAResponse {
     total_ads: number;
     tempo_medio_segundos: number;
   }[];
-  por_pessoa: {
-    pessoa_id: number;
-    loja_id: number;
-    loja_nome: string;
-    nome?: string;
-    whatsapp: string;
-    origem: string;
-    ultimo_criativo_titulo?: string;
-    ultimo_criativo_ad_id?: string;
-    total_mensagens: number;
-    tempo_medio_segundos: number;
-    ultima_mensagem_at?: string;
-  }[];
+  por_pessoa: PessoaAudit[];
 }
