@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { callPublicConnect, PublicConnectResult } from "@/lib/api";
+import { LogoSymbol } from "@/components/brand/Logo";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -13,11 +14,13 @@ import {
   Phone,
   ArrowRight,
   ExternalLink,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
 function formatPhone(phone: string) {
-  const p = String(phone).replace(/\D/g, "");
+  const p = String(phone || "").replace(/\D/g, "");
   if (p.startsWith("55") && (p.length === 12 || p.length === 13)) {
     const ddd = p.substring(2, 4);
     const prefix = p.length === 13 ? p.substring(4, 9) : p.substring(4, 8);
@@ -100,7 +103,6 @@ export default function PublicConnect() {
           toast.success("WhatsApp conectado com sucesso!");
         }
       } else if (res.ok && res.state !== "open" && !res.base64 && isInitialOrManual && action === "CONNECT") {
-        // Se a Evolution API retornou OK mas sem base64 e não está conectado, força reinício automático
         setTimeout(() => {
           fetchStatus("RESTART", silent, false);
         }, 1200);
@@ -124,7 +126,6 @@ export default function PublicConnect() {
       return;
     }
 
-    // Primeiro faz um CONNECT e inicia o polling controlado
     fetchStatus("CONNECT", false, true);
     startPolling();
 
@@ -150,36 +151,34 @@ export default function PublicConnect() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden font-sans">
       {/* Background Glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute top-[-15%] left-[-15%] w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-[-15%] right-[-15%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[160px] pointer-events-none" />
 
       {/* Header / Brand */}
       <div className="w-full max-w-xl mx-auto flex items-center justify-between mb-6 z-10">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-sm">
-            <Smartphone className="w-5 h-5" />
-          </div>
+          <LogoSymbol size="sm" />
           <div>
             <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5 font-display">
-              AdsWhats <span className="text-emerald-400 font-mono text-[11px] font-semibold">CONNECT</span>
+              Ads<span className="text-emerald-400">Whats</span> <span className="text-emerald-400 font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 border border-emerald-500/20">CONNECT</span>
             </h1>
             <p className="text-[11px] text-slate-400">Canal Seguro de Conexão WhatsApp</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400 bg-slate-900/80 px-2.5 py-1 rounded-full border border-slate-800">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 bg-slate-900/80 px-3 py-1 rounded-full border border-slate-800">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Conexão Criptografada</span>
+          <span>Conexão Segura Criptografada</span>
         </div>
       </div>
 
       {/* Main Card */}
-      <div className="w-full max-w-xl bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl backdrop-blur-xl p-6 sm:p-8 z-10">
+      <div className="w-full max-w-xl bg-slate-900/90 border border-slate-800/80 rounded-3xl shadow-2xl backdrop-blur-xl p-6 sm:p-8 z-10">
         {loadingInitial ? (
-          <div className="py-20 flex flex-col items-center justify-center text-center space-y-4">
+          <div className="py-24 flex flex-col items-center justify-center text-center space-y-4">
             <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
             <div className="space-y-1">
-              <p className="text-sm font-semibold text-slate-200">Verificando conexão da loja...</p>
+              <p className="text-sm font-bold text-slate-200">Verificando instância da loja...</p>
               <p className="text-xs text-slate-400">Aguarde alguns segundos enquanto preparamos a sessão.</p>
             </div>
           </div>
@@ -215,60 +214,59 @@ export default function PublicConnect() {
               <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
-              <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-slate-950 p-1 rounded-full shadow">
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
+              <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-slate-950 p-1.5 rounded-full shadow">
+                <Check className="w-4 h-4 stroke-[3]" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
-                WhatsApp Conectado
+              <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
+                WhatsApp Conectado com Sucesso
               </span>
-              <h2 className="text-xl font-bold text-white font-display pt-1">
+              <h2 className="text-2xl font-bold text-white font-display pt-1">
                 {data.loja_nome || "Loja Conectada"}
               </h2>
               {data.number && (
-                <div className="inline-flex items-center gap-1.5 text-sm font-mono text-emerald-300 bg-slate-950/60 px-3 py-1 rounded-lg border border-slate-800 mt-1">
+                <div className="inline-flex items-center gap-1.5 text-sm font-mono text-emerald-300 bg-slate-950/60 px-3 py-1 rounded-xl border border-slate-800 mt-1">
                   <Phone className="w-3.5 h-3.5 text-emerald-400" />
                   <span>{formatPhone(data.number)}</span>
                 </div>
               )}
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 text-left space-y-2 max-w-md w-full">
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 text-left space-y-2 max-w-md w-full">
               <div className="flex items-start gap-2.5">
-                <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0 animate-ping" />
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  O monitor de anúncios e contatos está ativo e sincronizado em tempo real.
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 mt-1 shrink-0 animate-ping" />
+                <p className="text-xs text-slate-200 font-medium leading-relaxed">
+                  A torre de monitoramento já está interceptando os leads e atribuindo às campanhas do Meta/Google Ads.
                 </p>
               </div>
-              <p className="text-[11px] text-slate-500 pl-4.5">
-                Você pode fechar esta página com segurança. Não é necessário escanear novamente.
+              <p className="text-[11px] text-slate-500 pl-5">
+                Você pode fechar esta página com segurança. A conexão permanece ativa em segundo plano.
               </p>
             </div>
 
             <button
               onClick={() => fetchStatus("STATUS", false)}
               disabled={isRefreshing}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center gap-2 border border-slate-700 transition-colors"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-2 border border-slate-700 transition-colors"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
               Verificar Conexão
             </button>
           </div>
         ) : (
-          /* Connecting / Disconnected - Show QR Code */
+          /* Connecting / Disconnected - Show QR Code with Step by Step */
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Header info inside card */}
             <div className="text-center space-y-1.5">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
                 {data.loja_nome || "WhatsApp da Loja"}
               </span>
               <h2 className="text-lg sm:text-xl font-bold text-white font-display">
                 Conecte seu WhatsApp Comercial
               </h2>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Escaneie o QR Code abaixo com o aparelho que atende os clientes da sua loja.
+                Aponte a câmera do WhatsApp para o QR Code abaixo para sincronizar a loja.
               </p>
             </div>
 
@@ -294,10 +292,10 @@ export default function PublicConnect() {
                 )}
               </div>
 
-              {/* Status and Action Buttons */}
+              {/* Status Indicator */}
               <div className="flex items-center justify-center gap-2 text-xs text-emerald-400 font-medium">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Aguardando leitura do WhatsApp...</span>
+                <span>Aguardando leitura do aparelho...</span>
               </div>
 
               <div className="pt-1 flex items-center justify-center gap-3">
@@ -305,7 +303,7 @@ export default function PublicConnect() {
                   type="button"
                   onClick={handleManualRefresh}
                   disabled={isRefreshing}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
                   Recarregar QR Code
@@ -318,12 +316,12 @@ export default function PublicConnect() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <h3 className="text-xs font-bold text-slate-300">Como escanear:</h3>
 
-                <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800">
                   <button
                     onClick={() => setActiveOsTab("android")}
-                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
+                    className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-colors ${
                       activeOsTab === "android"
-                        ? "bg-emerald-500 text-slate-950"
+                        ? "bg-emerald-500 text-slate-950 shadow-xs"
                         : "text-slate-400 hover:text-white"
                     }`}
                   >
@@ -331,9 +329,9 @@ export default function PublicConnect() {
                   </button>
                   <button
                     onClick={() => setActiveOsTab("iphone")}
-                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
+                    className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-colors ${
                       activeOsTab === "iphone"
-                        ? "bg-emerald-500 text-slate-950"
+                        ? "bg-emerald-500 text-slate-950 shadow-xs"
                         : "text-slate-400 hover:text-white"
                     }`}
                   >
@@ -343,26 +341,26 @@ export default function PublicConnect() {
               </div>
 
               {activeOsTab === "android" ? (
-                <ol className="space-y-2 text-xs text-slate-400">
-                  <li className="flex items-start gap-2">
+                <ol className="space-y-2 text-xs text-slate-400 font-normal">
+                  <li className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-200 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                       1
                     </span>
-                    <span>Abra o <strong>WhatsApp</strong> no celular do estabelecimento.</span>
+                    <span>Abra o <strong>WhatsApp</strong> no celular da loja.</span>
                   </li>
-                  <li className="flex items-start gap-2">
+                  <li className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-200 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                       2
                     </span>
-                    <span>Toque nos <strong>três pontinhos (⋮)</strong> no canto superior direito.</span>
+                    <span>Toque nos <strong>três pontinhos (⋮)</strong> no topo à direita.</span>
                   </li>
-                  <li className="flex items-start gap-2">
+                  <li className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-200 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                       3
                     </span>
-                    <span>Selecione <strong>Aparelhos conectados</strong> e depois <strong>Conectar um aparelho</strong>.</span>
+                    <span>Selecione <strong>Aparelhos conectados</strong> &gt; <strong>Conectar um aparelho</strong>.</span>
                   </li>
-                  <li className="flex items-start gap-2">
+                  <li className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-200 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                       4
                     </span>
@@ -370,26 +368,26 @@ export default function PublicConnect() {
                   </li>
                 </ol>
               ) : (
-                <ol className="space-y-2 text-xs text-slate-400">
-                  <li className="flex items-start gap-2">
+                <ol className="space-y-2 text-xs text-slate-400 font-normal">
+                  <li className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-200 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                       1
                     </span>
-                    <span>Abra o <strong>WhatsApp</strong> no iPhone do estabelecimento.</span>
+                    <span>Abra o <strong>WhatsApp</strong> no iPhone da loja.</span>
                   </li>
-                  <li className="flex items-start gap-2">
+                  <li className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-200 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                       2
                     </span>
-                    <span>Toque em <strong>Configurações (⚙)</strong> no canto inferior direito.</span>
+                    <span>Toque em <strong>Configurações (⚙)</strong> no rodapé.</span>
                   </li>
-                  <li className="flex items-start gap-2">
+                  <li className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-200 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                       3
                     </span>
                     <span>Selecione <strong>Aparelhos conectados</strong> &gt; <strong>Conectar um aparelho</strong>.</span>
                   </li>
-                  <li className="flex items-start gap-2">
+                  <li className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-200 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                       4
                     </span>

@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getContatos, getLojas } from "@/lib/api";
+import { useRealtimeNotifications } from "@/lib/pusher";
 import { Pessoa } from "@/types/contato";
 import { Navbar } from "@/components/Navbar";
 import { ChatModal } from "@/components/chat/ChatModal";
+import { CustomDropdown, DropdownOption } from "@/components/ui/CustomDropdown";
 import {
   Users,
   Search,
@@ -17,10 +19,14 @@ import {
   Filter,
   LayoutGrid,
   List,
+  AlertTriangle,
+  Zap,
+  Clock,
+  Radio,
 } from "lucide-react";
 
 function formatPhone(phone: string) {
-  const p = String(phone).replace(/\D/g, "");
+  const p = String(phone || "").replace(/\D/g, "");
   if (p.startsWith("55") && (p.length === 12 || p.length === 13)) {
     const ddd = p.substring(2, 4);
     const prefix = p.length === 13 ? p.substring(4, 9) : p.substring(4, 8);
@@ -62,16 +68,21 @@ function formatSLA(segundos?: number | null) {
   return `${hours}h ${remMin}m`;
 }
 
+type QuickFilter = "todos" | "sem_resposta" | "sla_estourado" | "meta_ads" | "google_ads";
 
 export default function ContatosPage() {
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
   const [selectedOrigem, setSelectedOrigem] = useState<string>("todos");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("todos");
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [activeChatContact, setActiveChatContact] = useState<Pessoa | null>(null);
 
-  // Debounce de 400ms para evitar disparar 1 requisição ao n8n por tecla digitada
+  // Escuta notificações em tempo real via Pusher
+  useRealtimeNotifications(selectedLojaId, activeChatContact?.id);
+
+  // Debounce de 400ms para busca fluida
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(searchTerm.trim());
@@ -101,84 +112,216 @@ export default function ContatosPage() {
       }),
   });
 
+  // Aplicação do filtro rápido de urgência (SLA / Origem)
+  const filteredContatos = contatos.filter((c) => {
+    if (quickFilter === "sem_resposta") {
+      return !c.tempo_primeira_resposta_segundos || c.tempo_primeira_resposta_segundos <= 0;
+    }
+    if (quickFilter === "sla_estourado") {
+      return (
+        (c.tempo_primeira_resposta_segundos && c.tempo_primeira_resposta_segundos > 900) ||
+        (c.tempo_medio_resposta_segundos && c.tempo_medio_resposta_segundos > 900)
+      );
+    }
+    if (quickFilter === "meta_ads") {
+      return c.origem === "instagram_ads" || c.origem === "facebook_ads" || Boolean(c.metadata_json?.isAd && c.metadata_json?.canal !== "google");
+    }
+    if (quickFilter === "google_ads") {
+      return c.origem === "google_ads" || c.ultimo_criativo_canal === "google" || c.metadata_json?.canal === "google";
+    }
+    return true;
+  });
+
   const totalContatos = contatos.length;
-  const leadsAds = contatos.filter((c) => c.origem === "instagram_ads" || c.origem === "facebook_ads" || c.origem === "google_ads").length;
-  const leadsOrganicos = contatos.filter((c) => c.origem === "organico" || !c.origem).length;
-  const totalMensagens = contatos.reduce((acc, c) => acc + (c.total_mensagens || 0), 0);
+  const leadsAds = contatos.filter(
+    (c) =>
+      c.origem === "instagram_ads" ||
+      c.origem === "facebook_ads" ||
+      c.origem === "google_ads" ||
+      Boolean(c.metadata_json?.isAd)
+  ).length;
+  const semRespostaCount = contatos.filter(
+    (c) => !c.tempo_primeira_resposta_segundos || c.tempo_primeira_resposta_segundos <= 0
+  ).length;
+  const slaCriticoCount = contatos.filter(
+    (c) =>
+      (c.tempo_primeira_resposta_segundos && c.tempo_primeira_resposta_segundos > 900) ||
+      (c.tempo_medio_resposta_segundos && c.tempo_medio_resposta_segundos > 900)
+  ).length;
+
+  const lojaOptions = useMemo<DropdownOption<number | null>[]>(() => {
+    return [
+      { value: null, label: "Todas as Lojas" },
+      ...lojas.map((l) => ({
+        value: l.id,
+        label: l.nome,
+        badge: l.ativo ? "Online" : "Pausada",
+      })),
+    ];
+  }, [lojas]);
+
+  const origemOptions: DropdownOption<string>[] = [
+    { value: "todos", label: "Todas as Origens" },
+    { value: "google_ads", label: "Google Ads" },
+    { value: "instagram_ads", label: "Instagram Ads" },
+    { value: "facebook_ads", label: "Facebook Ads" },
+    { value: "organico", label: "Orgânico" },
+  ];
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <Navbar />
 
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
-        {/* Header */}
+      <main className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6 pb-24 md:pb-8">
+        {/* Header Telemetry */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold font-display text-foreground flex items-center gap-2">
-              <Users className="w-6 h-6 text-primary" />
-              Monitoramento de Contatos & Leads
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold font-display text-foreground tracking-tight flex items-center gap-2">
+                <Users className="w-6 h-6 text-primary" />
+                Monitoramento de Leads & Contatos
+              </h1>
+              <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                <Radio className="w-2.5 h-2.5 animate-pulse" />
+                Fila ao Vivo
+              </span>
+            </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Acompanhe contatos interceptados via WhatsApp, atribuição de anúncios e conversas em tempo real
+              Audite tempo de resposta (SLA), atribuição de anúncios e conversas interceptadas das lojas
             </p>
           </div>
 
-          <button
-            onClick={() => refetch()}
-            disabled={isRefetching}
-            className="p-2.5 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm self-start sm:self-auto flex items-center gap-2 text-xs"
-            title="Atualizar lista"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
-            <span className="sm:hidden">Atualizar</span>
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="p-2.5 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-2xs flex items-center gap-2 text-xs font-medium"
+              title="Sincronizar contatos"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
+              <span>Atualizar</span>
+            </button>
+          </div>
         </div>
 
         {/* Global KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-card border border-border shadow-sm flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-2xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] text-muted-foreground">Total de Contatos</p>
-              <h3 className="text-lg font-bold font-display">{totalContatos}</h3>
+              <p className="text-[11px] text-muted-foreground font-medium">Total de Leads</p>
+              <h3 className="text-xl font-bold font-display tracking-tight mt-0.5">{totalContatos}</h3>
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-card border border-border shadow-sm flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-pink-500/10 text-pink-600 dark:text-pink-400">
+          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-2xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] text-muted-foreground">Leads de Anúncios</p>
-              <h3 className="text-lg font-bold font-display">{leadsAds}</h3>
+              <p className="text-[11px] text-muted-foreground font-medium">Leads de Anúncios</p>
+              <h3 className="text-xl font-bold font-display tracking-tight mt-0.5">{leadsAds}</h3>
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-card border border-border shadow-sm flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <Phone className="w-5 h-5" />
+          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-2xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] text-muted-foreground">Leads Orgânicos</p>
-              <h3 className="text-lg font-bold font-display">{leadsOrganicos}</h3>
+              <p className="text-[11px] text-muted-foreground font-medium">Sem Resposta</p>
+              <h3 className="text-xl font-bold font-display tracking-tight mt-0.5 text-amber-600 dark:text-amber-400">
+                {semRespostaCount}
+              </h3>
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-card border border-border shadow-sm flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <MessageSquare className="w-5 h-5" />
+          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-2xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+              <Clock className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] text-muted-foreground">Mensagens Gravadas</p>
-              <h3 className="text-lg font-bold font-display">{totalMensagens}</h3>
+              <p className="text-[11px] text-muted-foreground font-medium">SLA Estourado (&gt;15m)</p>
+              <h3 className="text-xl font-bold font-display tracking-tight mt-0.5 text-rose-600 dark:text-rose-400">
+                {slaCriticoCount}
+              </h3>
             </div>
           </div>
         </div>
 
-        {/* Filters Bar */}
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        {/* Quick Urgency Chips Filter */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <span className="text-[11px] text-muted-foreground font-semibold shrink-0 mr-1">Filtro rápido:</span>
+
+          <button
+            type="button"
+            onClick={() => setQuickFilter("todos")}
+            className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all ${
+              quickFilter === "todos"
+                ? "bg-foreground text-background shadow-xs"
+                : "bg-card border border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Todos ({totalContatos})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setQuickFilter("sem_resposta")}
+            className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 inline-flex items-center gap-1.5 transition-all ${
+              quickFilter === "sem_resposta"
+                ? "bg-amber-600 text-white shadow-xs"
+                : "bg-card border border-border text-muted-foreground hover:text-amber-600"
+            }`}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            Sem Resposta ({semRespostaCount})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setQuickFilter("sla_estourado")}
+            className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 inline-flex items-center gap-1.5 transition-all ${
+              quickFilter === "sla_estourado"
+                ? "bg-rose-600 text-white shadow-xs"
+                : "bg-card border border-border text-muted-foreground hover:text-rose-600"
+            }`}
+          >
+            <Clock className="w-3 h-3" />
+            SLA Estourado ({slaCriticoCount})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setQuickFilter("meta_ads")}
+            className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 inline-flex items-center gap-1.5 transition-all ${
+              quickFilter === "meta_ads"
+                ? "bg-pink-600 text-white shadow-xs"
+                : "bg-card border border-border text-muted-foreground hover:text-pink-600"
+            }`}
+          >
+            <Sparkles className="w-3 h-3" />
+            Meta Ads
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setQuickFilter("google_ads")}
+            className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 inline-flex items-center gap-1.5 transition-all ${
+              quickFilter === "google_ads"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "bg-card border border-border text-muted-foreground hover:text-blue-600"
+            }`}
+          >
+            <Search className="w-3 h-3" />
+            Google Ads
+          </button>
+        </div>
+
+        {/* Detailed Filters & View Mode */}
+        <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           <div className="flex-1 flex flex-col sm:flex-row items-center gap-3">
             {/* Search Input */}
             <div className="relative w-full sm:w-72">
@@ -188,53 +331,42 @@ export default function ContatosPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar por nome ou WhatsApp..."
-                className="w-full pl-10 pr-3.5 py-1.5 rounded-xl border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full pl-10 pr-3.5 py-1.5 rounded-xl border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               />
             </div>
 
             {/* Store Filter */}
-            <div className="relative w-full sm:w-56 flex items-center gap-2">
-              <Store className="w-4 h-4 text-muted-foreground shrink-0 hidden sm:block" />
-              <select
-                value={selectedLojaId ?? ""}
-                onChange={(e) => setSelectedLojaId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full px-3 py-1.5 rounded-xl border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              >
-                <option value="">Todas as Lojas</option>
-                {lojas.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.nome}
-                  </option>
-                ))}
-              </select>
+            <div className="w-full sm:w-56">
+              <CustomDropdown
+                value={selectedLojaId}
+                onChange={setSelectedLojaId}
+                options={lojaOptions}
+                icon={<Store className="w-3.5 h-3.5" />}
+                ariaLabel="Filtrar por loja"
+              />
             </div>
 
             {/* Origin Filter */}
-            <div className="relative w-full sm:w-48 flex items-center gap-2">
-              <Filter className="w-4 h-4 text-muted-foreground shrink-0 hidden sm:block" />
-              <select
+            <div className="w-full sm:w-48">
+              <CustomDropdown
                 value={selectedOrigem}
-                onChange={(e) => setSelectedOrigem(e.target.value)}
-                className="w-full px-3 py-1.5 rounded-xl border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              >
-                <option value="todos">Todas as Origens</option>
-                <option value="google_ads">Google Ads</option>
-                <option value="instagram_ads">Instagram Ads</option>
-                <option value="facebook_ads">Facebook Ads</option>
-                <option value="organico">Orgânico</option>
-              </select>
+                onChange={setSelectedOrigem}
+                options={origemOptions}
+                icon={<Filter className="w-3.5 h-3.5" />}
+                ariaLabel="Filtrar por canal de origem"
+              />
             </div>
           </div>
 
           {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 bg-background border border-border rounded-xl p-1 shrink-0 self-end md:self-auto">
+          <div className="flex items-center gap-1 bg-muted/60 border border-border rounded-xl p-1 shrink-0 self-end md:self-auto">
             <button
               type="button"
               onClick={() => setViewMode("table")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 viewMode === "table"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
               title="Visualização em Tabela"
             >
@@ -244,10 +376,10 @@ export default function ContatosPage() {
             <button
               type="button"
               onClick={() => setViewMode("cards")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 viewMode === "cards"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
               title="Visualização em Cards"
             >
@@ -259,38 +391,46 @@ export default function ContatosPage() {
 
         {/* Contacts Table / Cards */}
         {isLoading ? (
-          <div className="py-20 flex flex-col items-center justify-center space-y-3">
+          <div className="py-24 flex flex-col items-center justify-center space-y-3 bg-card border border-border/80 rounded-2xl">
             <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            <p className="text-xs text-muted-foreground">Carregando contatos...</p>
+            <p className="text-xs text-muted-foreground font-medium">Carregando leads das lojas...</p>
           </div>
-        ) : contatos.length === 0 ? (
-          <div className="p-12 rounded-2xl bg-card border border-border text-center space-y-3">
-            <Users className="w-10 h-10 text-muted-foreground mx-auto" />
-            <h3 className="text-sm font-bold text-foreground">Nenhum contato encontrado</h3>
+        ) : filteredContatos.length === 0 ? (
+          <div className="p-16 rounded-2xl bg-card border border-border/80 text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-muted border border-border flex items-center justify-center mx-auto text-muted-foreground">
+              <Users className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-foreground">Nenhum contato encontrado para o filtro selecionado</h3>
             <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Quando os clientes enviarem mensagens pelo WhatsApp das lojas, os contatos e conversas aparecerão aqui automaticamente.
+              Tente redefinir o filtro de origem ou a busca por nome/WhatsApp para visualizar os dados.
             </p>
           </div>
         ) : viewMode === "table" ? (
-          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-card border border-border/80 rounded-2xl overflow-hidden shadow-2xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/40 border-b border-border text-muted-foreground font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Contato / Cliente</th>
+                    <th className="py-3 px-4">Lead / Contato</th>
                     <th className="py-3 px-4">Loja</th>
                     <th className="py-3 px-4">Origem / Anúncio</th>
-                    <th className="py-3 px-4">Última Mensagem</th>
+                    <th className="py-3 px-4">Última Mensagem & SLA</th>
                     <th className="py-3 px-4 text-center">Mensagens</th>
                     <th className="py-3 px-4 text-right">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
-                  {contatos.map((contato) => {
-                    const isGoogle = contato.origem === "google_ads" || contato.ultimo_criativo_canal === "google" || contato.metadata_json?.canal === "google";
+                <tbody className="divide-y divide-border/60">
+                  {filteredContatos.map((contato) => {
+                    const isGoogle =
+                      contato.origem === "google_ads" ||
+                      contato.ultimo_criativo_canal === "google" ||
+                      contato.metadata_json?.canal === "google";
                     const isInstagram = contato.origem === "instagram_ads";
                     const isFacebook = contato.origem === "facebook_ads";
                     const isAd = isGoogle || isInstagram || isFacebook || Boolean(contato.metadata_json?.isAd);
+
+                    const slaPrimeiraResposta = contato.tempo_primeira_resposta_segundos;
+                    const semResposta = !slaPrimeiraResposta || slaPrimeiraResposta <= 0;
 
                     return (
                       <tr
@@ -300,7 +440,7 @@ export default function ContatosPage() {
                         {/* Contato info */}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
                               {contato.nome?.substring(0, 2).toUpperCase() || "WA"}
                             </div>
                             <div>
@@ -316,7 +456,7 @@ export default function ContatosPage() {
 
                         {/* Loja */}
                         <td className="py-3 px-4">
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted text-[11px] text-foreground font-medium">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted text-[11px] text-foreground font-medium border border-border/50">
                             <Store className="w-3 h-3 text-muted-foreground" />
                             {contato.loja_nome || `Loja #${contato.loja_id}`}
                           </span>
@@ -325,7 +465,7 @@ export default function ContatosPage() {
                         {/* Origem / Criativo */}
                         <td className="py-3 px-4">
                           {isAd ? (
-                            <div className="space-y-0.5">
+                            <div className="space-y-1">
                               {isGoogle ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
                                   <Search className="w-2.5 h-2.5" />
@@ -343,37 +483,46 @@ export default function ContatosPage() {
                                 </span>
                               )}
                               {(contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo) && (
-                                <p className="text-[10px] font-medium text-foreground truncate max-w-[190px]" title={contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo}>
+                                <p
+                                  className="text-[10px] font-medium text-foreground truncate max-w-[200px]"
+                                  title={contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo}
+                                >
                                   {contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo}
-                                </p>
-                              )}
-                              {contato.ultimo_criativo_tema && (
-                                <p className="text-[9px] text-muted-foreground truncate max-w-[190px]">
-                                  {contato.ultimo_criativo_tema}
                                 </p>
                               )}
                             </div>
                           ) : (
-                            <span className="text-[11px] text-muted-foreground">
-                              Orgânico
-                            </span>
+                            <span className="text-[11px] text-muted-foreground font-medium">Orgânico</span>
                           )}
                         </td>
 
                         {/* Última mensagem & SLA */}
                         <td className="py-3 px-4 max-w-xs">
-                          <div className="space-y-0.5">
-                            <p className="text-foreground truncate text-xs">
+                          <div className="space-y-1">
+                            <p className="text-foreground truncate text-xs font-normal">
                               {contato.ultima_mensagem || "Nenhuma mensagem gravada"}
                             </p>
                             <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                              <span className="flex items-center gap-1">
+                              <span className="flex items-center gap-1 font-mono">
                                 <Calendar className="w-2.5 h-2.5" />
                                 {formatDateRelative(contato.last_message_at)}
                               </span>
-                              {contato.tempo_medio_resposta_segundos && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono font-medium">
-                                  SLA: {formatSLA(contato.tempo_medio_resposta_segundos)}
+
+                              {semResposta ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold">
+                                  Sem Resposta
+                                </span>
+                              ) : (
+                                <span
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded font-mono font-bold ${
+                                    slaPrimeiraResposta <= 300
+                                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                      : slaPrimeiraResposta <= 900
+                                      ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                      : "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                                  }`}
+                                >
+                                  SLA: {formatSLA(slaPrimeiraResposta)}
                                 </span>
                               )}
                             </div>
@@ -382,7 +531,7 @@ export default function ContatosPage() {
 
                         {/* Total mensagens */}
                         <td className="py-3 px-4 text-center">
-                          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
+                          <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-muted/80 border border-border/50">
                             {contato.total_mensagens || 0}
                           </span>
                         </td>
@@ -391,10 +540,10 @@ export default function ContatosPage() {
                         <td className="py-3 px-4 text-right">
                           <button
                             onClick={() => setActiveChatContact(contato)}
-                            className="px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-sm"
+                            className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-2xs group-hover:scale-102"
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
-                            Ver Chat
+                            <span>Auditar Chat</span>
                           </button>
                         </td>
                       </tr>
@@ -405,9 +554,12 @@ export default function ContatosPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {contatos.map((contato) => {
-              const isGoogle = contato.origem === "google_ads" || contato.ultimo_criativo_canal === "google" || contato.metadata_json?.canal === "google";
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredContatos.map((contato) => {
+              const isGoogle =
+                contato.origem === "google_ads" ||
+                contato.ultimo_criativo_canal === "google" ||
+                contato.metadata_json?.canal === "google";
               const isInstagram = contato.origem === "instagram_ads";
               const isFacebook = contato.origem === "facebook_ads";
               const isAd = isGoogle || isInstagram || isFacebook || Boolean(contato.metadata_json?.isAd);
@@ -415,10 +567,9 @@ export default function ContatosPage() {
               return (
                 <div
                   key={contato.id}
-                  className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                  className="bg-card border border-border/80 rounded-2xl p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between"
                 >
                   <div className="space-y-4">
-                    {/* Top: Contact + Store */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
@@ -434,13 +585,12 @@ export default function ContatosPage() {
                         </div>
                       </div>
 
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-muted text-[10px] text-foreground font-medium shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-muted text-[10px] text-foreground font-medium shrink-0 border border-border/50">
                         <Store className="w-3 h-3 text-muted-foreground" />
                         {contato.loja_nome || `Loja #${contato.loja_id}`}
                       </span>
                     </div>
 
-                    {/* Origin / Ad Creative */}
                     <div className="pt-3 border-t border-border/60 space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         {isAd ? (
@@ -466,30 +616,28 @@ export default function ContatosPage() {
                           </span>
                         )}
 
-                        {contato.tempo_medio_resposta_segundos && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-[10px] font-semibold">
-                            SLA: {formatSLA(contato.tempo_medio_resposta_segundos)}
+                        {contato.tempo_primeira_resposta_segundos ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-[10px] font-bold">
+                            SLA: {formatSLA(contato.tempo_primeira_resposta_segundos)}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold text-[10px]">
+                            Sem Resposta
                           </span>
                         )}
                       </div>
 
-                      {isAd && (contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo) && (
-                        <p className="text-[11px] font-medium text-foreground truncate" title={contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo}>
-                          {contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo}
-                        </p>
-                      )}
-
                       {/* Last Message Box */}
-                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50 space-y-1">
+                      <div className="p-2.5 rounded-xl bg-muted/40 border border-border/50 space-y-1">
                         <p className="text-xs text-foreground line-clamp-2">
                           {contato.ultima_mensagem || "Nenhuma mensagem gravada"}
                         </p>
-                        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5 font-mono">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-2.5 h-2.5" />
                             {formatDateRelative(contato.last_message_at)}
                           </span>
-                          <span className="font-mono font-semibold">
+                          <span className="font-semibold">
                             {contato.total_mensagens || 0} msg(s)
                           </span>
                         </div>
@@ -497,14 +645,13 @@ export default function ContatosPage() {
                     </div>
                   </div>
 
-                  {/* Card Footer */}
                   <div className="pt-4 mt-4 border-t border-border flex items-center justify-end">
                     <button
                       onClick={() => setActiveChatContact(contato)}
-                      className="w-full py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                      className="w-full py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-2xs"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
-                      Ver Histórico de Chat
+                      Auditar Chat Completo
                     </button>
                   </div>
                 </div>
@@ -514,7 +661,7 @@ export default function ContatosPage() {
         )}
       </main>
 
-      {/* Chat History Viewer Modal — montado apenas quando há um chat aberto */}
+      {/* Chat History Viewer Modal */}
       {activeChatContact && (
         <ChatModal
           isOpen={true}

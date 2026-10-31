@@ -2,7 +2,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { CommandPalette } from "@/components/CommandPalette";
+import { BottomNav } from "@/components/navigation/BottomNav";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import LojasPage from "@/pages/Lojas";
@@ -27,56 +30,60 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/conectar/:token" element={<PublicConnect />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/criativos"
-              element={
-                <ProtectedRoute>
-                  <CriativosPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/lojas"
-              element={
-                <ProtectedRoute>
-                  <LojasPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/contatos"
-              element={
-                <ProtectedRoute>
-                  <ContatosPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/usuarios"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <UsuariosPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          <Toaster position="top-right" richColors />
-        </AuthProvider>
-      </Router>
+      <ThemeProvider>
+        <Router>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/conectar/:token" element={<PublicConnect />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/criativos"
+                element={
+                  <ProtectedRoute>
+                    <CriativosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/lojas"
+                element={
+                  <ProtectedRoute>
+                    <LojasPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/contatos"
+                element={
+                  <ProtectedRoute>
+                    <ContatosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/usuarios"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <UsuariosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+            <CommandPalette />
+            <BottomNav />
+            <Toaster position="top-right" richColors />
+          </AuthProvider>
+        </Router>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

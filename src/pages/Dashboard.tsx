@@ -1,23 +1,29 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { getLojas } from "@/lib/api";
+import { getLojas, getContatos, getMetricsSLA } from "@/lib/api";
+import { useRealtimeNotifications } from "@/lib/pusher";
 import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/contexts/AuthContext";
-import { MetricsSLASection } from "@/components/dashboard/MetricsSLASection";
+import { ChatModal } from "@/components/chat/ChatModal";
+import { Pessoa } from "@/types/contato";
+import { CustomDropdown, DropdownOption } from "@/components/ui/CustomDropdown";
 import {
   Building2,
   Users,
   MessageSquare,
-  Shield,
+  Clock,
+  AlertTriangle,
   ArrowRight,
-  Plus,
   RefreshCw,
-  QrCode,
   Sparkles,
   Phone,
-  LayoutGrid,
-  List,
+  Search,
+  Zap,
+  TrendingUp,
+  CheckCircle2,
+  ShieldCheck,
+  Store,
 } from "lucide-react";
 
 function formatPhone(phone: string) {
@@ -31,336 +37,407 @@ function formatPhone(phone: string) {
   return phone;
 }
 
+function formatDateRelative(isoString?: string) {
+  if (!isoString) return "-";
+  try {
+    const d = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+    if (diffMins < 1) return "Agora há pouco";
+    if (diffMins < 60) return `${diffMins}m atrás`;
+    if (diffHours < 24) return `${diffHours}h atrás`;
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  } catch {
+    return isoString;
+  }
+}
+
+function formatSLA(segundos?: number | null) {
+  if (segundos === null || segundos === undefined || segundos <= 0) return "0s";
+  if (segundos < 60) return `${segundos}s`;
+  const mins = Math.floor(segundos / 60);
+  const remSec = segundos % 60;
+  if (mins < 60) return remSec > 0 ? `${mins}m ${remSec}s` : `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const remMin = mins % 60;
+  return `${hours}h ${remMin}m`;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
-  const [lojasViewMode, setLojasViewMode] = useState<"table" | "cards">("table");
+  const [activeChatContact, setActiveChatContact] = useState<Pessoa | null>(null);
 
+  // Escuta notificações em tempo real
+  useRealtimeNotifications(selectedLojaId);
+
+  // Consulta de Lojas
   const {
     data: lojas = [],
-    isLoading,
-    isError,
-    isRefetching,
-    refetch,
+    isLoading: isLoadingLojas,
+    isRefetching: isRefetchingLojas,
+    refetch: refetchLojas,
   } = useQuery({
     queryKey: ["lojas"],
     queryFn: getLojas,
   });
 
+  // Consulta das Métricas Globais de SLA (resumo dos últimos 30 dias)
+  const { data: metricsData } = useQuery({
+    queryKey: ["metrics-sla-summary", selectedLojaId],
+    queryFn: () => getMetricsSLA({ loja_id: selectedLojaId, dias: 30 }),
+  });
+
+  // Feed ao vivo de leads que precisam de atenção
+  const {
+    data: contatos = [],
+    isLoading: isLoadingContatos,
+    refetch: refetchContatos,
+  } = useQuery({
+    queryKey: ["contatos-dashboard", selectedLojaId],
+    queryFn: () => getContatos({ loja_id: selectedLojaId, limit: 10 }),
+  });
+
   const totalLojas = lojas.length;
   const lojasAtivas = lojas.filter((l) => l.ativo).length;
   const totalContatos = lojas.reduce((acc, l) => acc + (l.total_contatos || 0), 0);
-  const totalMensagens = lojas.reduce((acc, l) => acc + (l.total_mensagens || 0), 0);
+  const slaMedio = metricsData?.resumo?.tempo_medio_segundos || 0;
+  const leadsSemResposta = metricsData?.resumo?.total_pendentes || 0;
+
+  const handleRefreshAll = () => {
+    refetchLojas();
+    refetchContatos();
+  };
+
+  const lojaOptions = useMemo<DropdownOption<number | null>[]>(() => {
+    return [
+      { value: null, label: "Todas as Lojas" },
+      ...lojas.map((l) => ({
+        value: l.id,
+        label: l.nome,
+        badge: l.ativo ? "Online" : "Pausada",
+      })),
+    ];
+  }, [lojas]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <Navbar />
 
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full space-y-8">
-        {/* Welcome Banner */}
-        <div className="p-6 md:p-8 rounded-2xl bg-gradient-to-r from-primary/10 via-card to-card border border-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[11px] font-semibold">
-              <Sparkles className="w-3.5 h-3.5" />
-              Torre Central AdsWhats
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold font-display tracking-tight text-foreground">
-              Olá, {user?.nome || "Operador"}!
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6 lg:space-y-8 pb-24 md:pb-8">
+        {/* Header Limpo e Respirável */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold font-display tracking-tight text-foreground">
+              Visão Geral
             </h1>
-            <p className="text-xs md:text-sm text-muted-foreground max-w-xl">
-              Monitore lojas e anúncios, capture contatos e gerencie mensagens de WhatsApp em escala multi-lojas.
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+              Acompanhamento central de atendimento e conversão de tráfego pago
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            {/* Seletor de Loja Estilizado & Confiável */}
+            <CustomDropdown
+              value={selectedLojaId}
+              onChange={setSelectedLojaId}
+              options={lojaOptions}
+              icon={<Store className="w-3.5 h-3.5" />}
+              className="w-48 sm:w-56"
+              ariaLabel="Filtrar por loja"
+            />
+
             <button
-              onClick={() => refetch()}
-              disabled={isRefetching}
-              className="p-3 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm"
+              onClick={handleRefreshAll}
+              disabled={isRefetchingLojas}
+              className="p-2 rounded-xl border border-border/80 bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-2xs"
               title="Atualizar dados"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefetchingLojas ? "animate-spin" : ""}`} />
             </button>
-
-            <Link
-              to="/lojas"
-              className="px-5 py-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold flex items-center gap-2 shadow-sm transition-all"
-            >
-              <Building2 className="w-4 h-4" />
-              Gerenciar Lojas
-            </Link>
           </div>
         </div>
 
-        {/* Global KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 rounded-2xl bg-card border border-border shadow-sm flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-primary/10 text-primary">
-              <Building2 className="w-6 h-6" />
+        {/* 4 KPIs Essenciais com Design Respirável */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* KPI 1: Lojas Conectadas */}
+          <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-xs font-semibold">Lojas Monitoradas</span>
+              <Building2 className="w-4 h-4 text-primary" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Lojas Cadastradas</p>
-              <h3 className="text-2xl font-bold font-display mt-0.5">{totalLojas}</h3>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                {lojasAtivas} ativas
-              </span>
-            </div>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-card border border-border shadow-sm flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Contatos Coletados</p>
-              <h3 className="text-2xl font-bold font-display mt-0.5">{totalContatos}</h3>
-              <span className="text-[10px] text-muted-foreground">Isolados por loja_id</span>
-            </div>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-card border border-border shadow-sm flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <MessageSquare className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Mensagens Registradas</p>
-              <h3 className="text-2xl font-bold font-display mt-0.5">{totalMensagens}</h3>
-              <span className="text-[10px] text-muted-foreground">Via webhook inbound</span>
-            </div>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-card border border-border shadow-sm flex items-center gap-4">
-            <div className={`p-3 rounded-xl ${
-              isError 
-                ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" 
-                : isLoading 
-                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" 
-                : "bg-purple-500/10 text-purple-600 dark:text-purple-400"
-            }`}>
-              <Shield className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Gateway de Integração</p>
-              <h3 className={`text-base font-bold font-display mt-1 ${
-                isError 
-                  ? "text-rose-600 dark:text-rose-400" 
-                  : isLoading 
-                  ? "text-amber-600 dark:text-amber-400" 
-                  : "text-emerald-600 dark:text-emerald-400"
-              }`}>
-                {isError ? "Erro Conexão" : isLoading ? "Checando..." : "Conectado"}
+              <h3 className="text-3xl font-extrabold font-display tracking-tight text-foreground">
+                {totalLojas}
               </h3>
-              <span className="text-[10px] text-muted-foreground">
-                {isError ? "Falha ao consultar API" : isLoading ? "Sincronizando..." : "Serviços Operacionais"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Seção Central de Métricas de SLA & Criativos */}
-        <MetricsSLASection
-          lojas={lojas}
-          selectedLojaId={selectedLojaId}
-          onSelectLojaId={setSelectedLojaId}
-        />
-
-        {/* Lojas Preview & Quick Actions */}
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold font-display text-foreground">
-                Lojas Recentes
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Status das instâncias e volume de contatos
+              <p className="text-[11px] text-emerald-500 font-bold mt-1">
+                {lojasAtivas} de {totalLojas} instâncias ativas
               </p>
             </div>
+          </div>
 
-            <div className="flex items-center gap-3 self-end sm:self-auto">
-              <div className="flex items-center gap-1 bg-card border border-border rounded-xl p-1 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setLojasViewMode("table")}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-                    lojasViewMode === "table"
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                  title="Visualização em Tabela"
-                >
-                  <List className="w-3.5 h-3.5" />
-                  <span>Tabela</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLojasViewMode("cards")}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-                    lojasViewMode === "cards"
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                  title="Visualização em Cards"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  <span>Cards</span>
-                </button>
+          {/* KPI 2: Total de Leads Capturados */}
+          <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-xs font-semibold">Leads Capturados</span>
+              <Users className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div>
+              <h3 className="text-3xl font-extrabold font-display tracking-tight text-foreground">
+                {totalContatos}
+              </h3>
+              <p className="text-[11px] text-muted-foreground font-medium mt-1">
+                Registrados via WhatsApp
+              </p>
+            </div>
+          </div>
+
+          {/* KPI 3: Tempo Médio de Resposta (SLA) */}
+          <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-xs font-semibold">Tempo de Resposta (SLA)</span>
+              <Clock className="w-4 h-4 text-blue-500" />
+            </div>
+            <div>
+              <h3 className="text-3xl font-extrabold font-display tracking-tight text-foreground">
+                {formatSLA(slaMedio)}
+              </h3>
+              <p className={`text-[11px] font-bold mt-1 ${slaMedio <= 300 ? "text-emerald-500" : "text-amber-500"}`}>
+                {slaMedio <= 300 ? "⚡ Dentro da meta (< 5 min)" : "⚠️ Atenção: Acima da meta"}
+              </p>
+            </div>
+          </div>
+
+          {/* KPI 4: Leads Sem Resposta (Urgência) */}
+          <Link
+            to="/contatos"
+            className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs space-y-2 hover:border-rose-500/40 transition-all group block"
+            title="Clique para abrir a fila de atendimento"
+          >
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-xs font-semibold">Aguardando Retorno</span>
+              <AlertTriangle className={`w-4 h-4 ${leadsSemResposta > 0 ? "text-rose-500" : "text-muted-foreground"}`} />
+            </div>
+            <div>
+              <h3 className={`text-3xl font-extrabold font-display tracking-tight ${leadsSemResposta > 0 ? "text-rose-500" : "text-foreground"}`}>
+                {leadsSemResposta}
+              </h3>
+              <p className="text-[11px] text-muted-foreground font-medium mt-1 flex items-center gap-1 group-hover:text-primary transition-colors">
+                <span>{leadsSemResposta > 0 ? "Requer atendimento imediato" : "Fila zerada"}</span>
+                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </p>
+            </div>
+          </Link>
+        </div>
+
+        {/* Bloco Operacional: Fila de Leads Recentes + Atalhos Estratégicos */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Coluna Principal: Fila Viva de Atendimento (8 colunas) */}
+          <div className="lg:col-span-8 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold font-display text-foreground flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  Fila de Atendimento em Tempo Real
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Clientes mais recentes interceptados das campanhas de anúncios
+                </p>
               </div>
 
               <Link
-                to="/lojas"
-                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                to="/contatos"
+                className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
               >
-                Ver todas ({totalLojas})
+                Ver fila completa
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
-          </div>
 
-          {isLoading ? (
-            <div className="p-12 text-center text-xs text-muted-foreground bg-card border border-border rounded-2xl">
-              Carregando dados das lojas...
-            </div>
-          ) : lojas.length === 0 ? (
-            <div className="p-8 rounded-2xl bg-card border border-border text-center space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Nenhuma loja cadastrada no momento.
-              </p>
-              <Link
-                to="/lojas"
-                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold inline-flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Cadastrar Loja Agora
-              </Link>
-            </div>
-          ) : lojasViewMode === "table" ? (
-            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-muted/40 border-b border-border text-muted-foreground font-semibold">
-                    <tr>
-                      <th className="py-3 px-4">Loja</th>
-                      <th className="py-3 px-4">WhatsApp Oficial</th>
-                      <th className="py-3 px-4 text-center">Contatos</th>
-                      <th className="py-3 px-4 text-center">Mensagens</th>
-                      <th className="py-3 px-4 text-center">Status</th>
-                      <th className="py-3 px-4 text-right">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {lojas.map((loja) => (
-                      <tr key={loja.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                              {loja.nome?.substring(0, 2).toUpperCase() || "LJ"}
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-foreground">{loja.nome}</span>
-                              <span className="text-[10px] font-mono text-muted-foreground">#{loja.id}</span>
-                            </div>
-                          </div>
-                        </td>
+            {isLoadingContatos ? (
+              <div className="p-12 text-center text-xs text-muted-foreground bg-card border border-border/80 rounded-2xl">
+                Carregando fila ao vivo...
+              </div>
+            ) : contatos.length === 0 ? (
+              <div className="p-12 rounded-2xl bg-card border border-border/80 text-center space-y-2">
+                <Users className="w-8 h-8 text-muted-foreground mx-auto" />
+                <h3 className="text-sm font-bold text-foreground">Nenhum lead aguardando no momento</h3>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                  Assim que os clientes clicarem nos anúncios e chamarem no WhatsApp, eles aparecerão aqui instantaneamente.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {contatos.slice(0, 7).map((contato) => {
+                  const isGoogle =
+                    contato.origem === "google_ads" ||
+                    contato.ultimo_criativo_canal === "google" ||
+                    contato.metadata_json?.canal === "google";
+                  const isAd =
+                    contato.origem === "instagram_ads" ||
+                    contato.origem === "facebook_ads" ||
+                    isGoogle ||
+                    Boolean(contato.metadata_json?.isAd);
 
-                        <td className="py-3 px-4 font-mono">
-                          {loja.whatsapp_loja ? (
-                            <span className="text-foreground">{formatPhone(loja.whatsapp_loja)}</span>
-                          ) : (
-                            <span className="italic text-amber-500/90 dark:text-amber-400 font-sans text-[11px] font-medium">
-                              Aguardando conexão
+                  const semResposta =
+                    !contato.tempo_primeira_resposta_segundos ||
+                    contato.tempo_primeira_resposta_segundos <= 0;
+
+                  const matchedLoja = lojas.find(
+                    (l) => String(l.id) === String(contato.loja_id)
+                  );
+                  const lojaNome =
+                    contato.loja_nome ||
+                    matchedLoja?.nome ||
+                    (contato.loja_id ? `Loja #${contato.loja_id}` : "Loja");
+
+                  return (
+                    <div
+                      key={contato.id}
+                      onClick={() => setActiveChatContact(contato)}
+                      className="p-3.5 rounded-2xl bg-card border border-border/80 hover:border-primary/40 cursor-pointer shadow-2xs hover:shadow-md transition-all flex items-center justify-between gap-4 group"
+                    >
+                      {/* Avatar & Nome */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                          {contato.nome?.substring(0, 2).toUpperCase() || "WA"}
+                        </div>
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-xs font-bold text-foreground truncate group-hover:text-primary transition-colors">
+                              {contato.nome || "Contato WhatsApp"}
+                            </h4>
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {formatPhone(contato.whatsapp)}
                             </span>
-                          )}
-                        </td>
 
-                        <td className="py-3 px-4 text-center">
-                          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
-                            {loja.total_contatos || 0}
-                          </span>
-                        </td>
+                            {/* Badge da Loja destacado junto ao contato */}
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold text-[10px] border border-emerald-500/20 shadow-2xs shrink-0">
+                              <Store className="w-2.5 h-2.5" />
+                              <span>{lojaNome}</span>
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate max-w-xs sm:max-w-md">
+                            {contato.ultima_mensagem || "Iniciou contato via WhatsApp"}
+                          </p>
+                        </div>
+                      </div>
 
-                        <td className="py-3 px-4 text-center">
-                          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
-                            {loja.total_mensagens || 0}
-                          </span>
-                        </td>
-
-                        <td className="py-3 px-4 text-center">
+                      {/* Badges de Origem & SLA */}
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        {isAd && (
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                              loja.ativo
-                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                : "bg-muted text-muted-foreground border-border"
+                            className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              isGoogle
+                                ? "bg-sky-500/10 text-sky-400 border border-sky-500/20"
+                                : "bg-pink-500/10 text-pink-400 border border-pink-500/20"
                             }`}
                           >
-                            {loja.ativo ? "Ativa" : "Inativa"}
+                            {isGoogle ? <Search className="w-2.5 h-2.5" /> : <Sparkles className="w-2.5 h-2.5" />}
+                            {isGoogle ? "Google Ads" : "Meta Ads"}
                           </span>
-                        </td>
+                        )}
 
-                        <td className="py-3 px-4 text-right">
-                          <Link
-                            to="/lojas"
-                            className="py-1.5 px-3 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center gap-1.5 transition-colors"
-                          >
-                            Abrir Configurações
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {lojas.map((loja) => (
-                <div
-                  key={loja.id}
-                  className="p-5 rounded-2xl bg-card border border-border shadow-sm flex flex-col justify-between space-y-4"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-foreground font-display">
-                        {loja.nome}
-                      </h4>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <Phone className="w-3 h-3" />
-                        {loja.whatsapp_loja}
-                      </p>
+                        {semResposta ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-500 border border-rose-500/25 text-[10px] font-bold animate-pulse">
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                            Sem Resposta
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-mono text-emerald-500 font-bold hidden sm:inline">
+                            {formatSLA(contato.tempo_primeira_resposta_segundos)}
+                          </span>
+                        )}
+
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {formatDateRelative(contato.last_message_at)}
+                        </span>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Coluna Lateral: Resumo das Lojas e Ações Rápidas (4 colunas) */}
+          <div className="lg:col-span-4 space-y-5">
+            {/* Atalho para Relatórios de Criativos */}
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-pink-500/10 via-card to-card border border-pink-500/20 shadow-2xs space-y-3">
+              <div className="flex items-center gap-2 text-pink-500 font-bold text-xs uppercase tracking-wider">
+                <Sparkles className="w-4 h-4" />
+                <span>Inteligência de Tráfego</span>
+              </div>
+              <h3 className="text-sm font-bold font-display text-foreground">
+                Quais anúncios trazem mais retorno?
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Acesse o raio-x completo de criativos do Meta/Google Ads, divisão de canais e ranking de atendimento das lojas.
+              </p>
+              <Link
+                to="/criativos"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold transition-all shadow-xs"
+              >
+                <span>Ver Relatório de Criativos</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {/* Status das Lojas Conectadas */}
+            <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+                <h3 className="text-xs font-bold font-display uppercase tracking-wider text-foreground">
+                  Status das Lojas ({lojas.length})
+                </h3>
+                <Link to="/lojas" className="text-[11px] font-bold text-primary hover:underline">
+                  Gerenciar
+                </Link>
+              </div>
+
+              <div className="space-y-2">
+                {lojas.slice(0, 4).map((loja) => (
+                  <div
+                    key={loja.id}
+                    className="p-2.5 rounded-xl bg-background border border-border/60 flex items-center justify-between text-xs"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-foreground truncate">{loja.nome}</p>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {loja.whatsapp_loja ? formatPhone(loja.whatsapp_loja) : "Aguardando conexão"}
+                      </span>
+                    </div>
+
                     <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                      className={`text-[9px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${
                         loja.ativo
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                          ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
                           : "bg-muted text-muted-foreground border-border"
                       }`}
                     >
-                      {loja.ativo ? "Ativa" : "Inativa"}
+                      {loja.ativo ? "Online" : "Offline"}
                     </span>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                    <div className="p-2 rounded-lg bg-muted/40 border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Contatos</span>
-                      <span className="font-bold font-mono">{loja.total_contatos || 0}</span>
-                    </div>
-                    <div className="p-2 rounded-lg bg-muted/40 border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Mensagens</span>
-                      <span className="font-bold font-mono">{loja.total_mensagens || 0}</span>
-                    </div>
-                  </div>
-
-                  <Link
-                    to="/lojas"
-                    className="w-full py-1.5 px-3 rounded-lg border border-border text-center text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  >
-                    Abrir Configurações
-                  </Link>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          )}
+          </div>
         </div>
       </main>
+
+      {/* Slide-over Sheet Drawer (Abre ao clicar no lead) */}
+      {activeChatContact && (
+        <ChatModal
+          isOpen={true}
+          onClose={() => setActiveChatContact(null)}
+          contato={activeChatContact}
+        />
+      )}
     </div>
   );
 }

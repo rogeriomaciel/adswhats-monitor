@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getMetricsSLA } from "@/lib/api";
 import { Loja } from "@/types/loja";
+import { CustomDropdown, DropdownOption } from "@/components/ui/CustomDropdown";
 import {
   Clock,
   Sparkles,
@@ -18,6 +19,7 @@ import {
   Loader2,
   ExternalLink,
   Search,
+  Zap,
 } from "lucide-react";
 
 interface MetricsSLASectionProps {
@@ -68,7 +70,6 @@ export function MetricsSLASection({
   };
 
   const criativos = data?.por_criativo || [];
-  const lojasList = data?.por_loja || [];
 
   const filteredCriativos = criativos.filter((c) => {
     if (selectedCanal === "todos") return true;
@@ -83,54 +84,62 @@ export function MetricsSLASection({
     return true;
   });
 
+  const lojaOptions = useMemo<DropdownOption<number | null>[]>(() => {
+    return [
+      { value: null, label: "Todas as Lojas" },
+      ...lojas.map((l) => ({
+        value: l.id,
+        label: l.nome,
+        badge: l.ativo ? "Online" : "Pausada",
+      })),
+    ];
+  }, [lojas]);
+
+  const canalOptions: DropdownOption<string>[] = [
+    { value: "todos", label: "Todos os Canais" },
+    { value: "google", label: "Google Ads" },
+    { value: "instagram", label: "Instagram Ads" },
+    { value: "facebook", label: "Facebook Ads" },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header com Filtros de Loja e Período */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-card border border-border shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-card border border-border/80 shadow-2xs">
         <div>
           <h2 className="text-base font-bold font-display text-foreground flex items-center gap-2">
             <Timer className="w-5 h-5 text-primary" />
-            Performance de SLA & Atribuição de Criativos
+            Performance de SLA & Atribuição de Anúncios
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Tempo de resposta dos atendentes, velocidade de retorno e impacto por anúncio (Meta Ads & Google Ads)
+            Tempo de resposta dos atendentes e retorno por campanha (Meta Ads & Google Ads)
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
           {/* Seletor de Loja */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-background text-xs">
-            <Store className="w-3.5 h-3.5 text-muted-foreground" />
-            <select
-              value={selectedLojaId ?? ""}
-              onChange={(e) => onSelectLojaId(e.target.value ? Number(e.target.value) : null)}
-              className="bg-transparent border-none text-foreground font-medium focus:outline-none cursor-pointer"
-            >
-              <option value="">Todas as Lojas</option>
-              {lojas.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.nome}
-                </option>
-              ))}
-            </select>
+          <div className="w-44 sm:w-52">
+            <CustomDropdown
+              value={selectedLojaId}
+              onChange={onSelectLojaId}
+              options={lojaOptions}
+              icon={<Store className="w-3.5 h-3.5" />}
+              ariaLabel="Filtrar por loja"
+            />
           </div>
 
-          {/* Seletor de Canal / Origem */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-background text-xs">
-            <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-            <select
+          {/* Seletor de Canal */}
+          <div className="w-40 sm:w-48">
+            <CustomDropdown
               value={selectedCanal}
-              onChange={(e) => setSelectedCanal(e.target.value)}
-              className="bg-transparent border-none text-foreground font-medium focus:outline-none cursor-pointer"
-            >
-              <option value="todos">Todos os Canais</option>
-              <option value="google">Google Ads</option>
-              <option value="instagram">Instagram Ads</option>
-              <option value="facebook">Facebook Ads</option>
-            </select>
+              onChange={setSelectedCanal}
+              options={canalOptions}
+              icon={<Filter className="w-3.5 h-3.5" />}
+              ariaLabel="Filtrar por canal"
+            />
           </div>
 
-          {/* Seletor de Período */}
+          {/* Seletor de Período em Pílulas */}
           <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border text-xs">
             {[
               { label: "7D", val: 7 },
@@ -141,9 +150,9 @@ export function MetricsSLASection({
               <button
                 key={p.val}
                 onClick={() => setDias(p.val)}
-                className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                   dias === p.val
-                    ? "bg-card text-foreground shadow-sm"
+                    ? "bg-background text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -155,7 +164,7 @@ export function MetricsSLASection({
           <button
             onClick={() => refetch()}
             disabled={isRefetching}
-            className="p-2 rounded-xl border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm"
+            className="p-2 rounded-xl border border-border/80 bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-2xs"
             title="Atualizar métricas"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
@@ -164,82 +173,101 @@ export function MetricsSLASection({
       </div>
 
       {isLoading ? (
-        <div className="py-16 flex flex-col items-center justify-center space-y-3 bg-card border border-border rounded-2xl">
+        <div className="py-20 flex flex-col items-center justify-center space-y-3 bg-card border border-border/80 rounded-2xl">
           <Loader2 className="w-7 h-7 text-primary animate-spin" />
-          <p className="text-xs text-muted-foreground">Consolidando métricas de atendimento e criativos...</p>
+          <p className="text-xs text-muted-foreground font-medium">Consolidando telemetria de atendimento e criativos...</p>
         </div>
       ) : (
         <>
           {/* KPI Cards de SLA e Conversão */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* SLA Médio */}
-            <div className="p-5 rounded-2xl bg-card border border-border shadow-sm flex flex-col justify-between space-y-3">
+            <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium">Tempo Médio de SLA</span>
+                <span className="text-xs text-muted-foreground font-medium">Tempo Médio de Atendimento</span>
                 <div className="p-2 rounded-xl bg-primary/10 text-primary">
                   <Clock className="w-4 h-4" />
                 </div>
               </div>
               <div>
-                <h3 className="text-2xl font-bold font-display text-foreground">
+                <h3 className="text-2xl font-bold font-display text-foreground tracking-tight">
                   {formatSLA(resumo.tempo_medio_segundos)}
                 </h3>
-                <span className="text-[11px] text-muted-foreground mt-0.5 block">
-                  Mediana: <strong className="text-foreground">{formatSLA(resumo.tempo_mediano_segundos)}</strong>
-                </span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[11px] text-muted-foreground font-mono">
+                    Mediana: <strong className="text-foreground">{formatSLA(resumo.tempo_mediano_segundos)}</strong>
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                    resumo.tempo_medio_segundos <= 300 
+                      ? "bg-emerald-500/10 text-emerald-500" 
+                      : "bg-amber-500/10 text-amber-500"
+                  }`}>
+                    {resumo.tempo_medio_segundos <= 300 ? "Meta Batida" : "Atenção"}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Taxa de Resposta */}
-            <div className="p-5 rounded-2xl bg-card border border-border shadow-sm flex flex-col justify-between space-y-3">
+            {/* Taxa de Resposta com Progress Bar */}
+            <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground font-medium">Taxa de Resposta</span>
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
               </div>
-              <div>
-                <h3 className="text-2xl font-bold font-display text-foreground">
-                  {resumo.taxa_resposta_pct}%
-                </h3>
-                <span className="text-[11px] text-muted-foreground mt-0.5 block">
-                  {resumo.total_respondidas} de {resumo.total_inbound} recebidas
-                </span>
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <h3 className="text-2xl font-bold font-display text-foreground tracking-tight">
+                    {resumo.taxa_resposta_pct}%
+                  </h3>
+                  <span className="text-[11px] text-muted-foreground font-mono">
+                    {resumo.total_respondidas}/{resumo.total_inbound}
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, resumo.taxa_resposta_pct)}%` }}
+                  />
+                </div>
               </div>
             </div>
 
             {/* Mensagens de Anúncios CTWA */}
-            <div className="p-5 rounded-2xl bg-card border border-border shadow-sm flex flex-col justify-between space-y-3">
+            <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium">Mensagens de Anúncios</span>
-                <div className="p-2 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400">
+                <span className="text-xs text-muted-foreground font-medium">Conversas de Anúncios</span>
+                <div className="p-2 rounded-xl bg-pink-500/10 text-pink-500">
                   <Sparkles className="w-4 h-4" />
                 </div>
               </div>
               <div>
-                <h3 className="text-2xl font-bold font-display text-foreground">
+                <h3 className="text-2xl font-bold font-display text-foreground tracking-tight">
                   {resumo.total_mensagens_ad}
                 </h3>
-                <span className="text-[11px] text-muted-foreground mt-0.5 block">
+                <span className="text-[11px] text-muted-foreground font-medium mt-0.5 block">
                   Meta Ads & Google Ads interceptados
                 </span>
               </div>
             </div>
 
             {/* Inbound Pendente */}
-            <div className="p-5 rounded-2xl bg-card border border-border shadow-sm flex flex-col justify-between space-y-3">
+            <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium">Aguardando Resposta</span>
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <span className="text-xs text-muted-foreground font-medium">Fila Sem Resposta</span>
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
                   <AlertCircle className="w-4 h-4" />
                 </div>
               </div>
               <div>
-                <h3 className="text-2xl font-bold font-display text-foreground">
+                <h3 className={`text-2xl font-bold font-display tracking-tight ${
+                  resumo.total_pendentes > 0 ? "text-amber-500" : "text-emerald-500"
+                }`}>
                   {resumo.total_pendentes}
                 </h3>
-                <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-0.5 block">
-                  {resumo.total_pendentes > 0 ? "Requer atendimento" : "Fila zerada"}
+                <span className="text-[11px] font-semibold mt-0.5 block">
+                  {resumo.total_pendentes > 0 ? "Leads aguardando contato" : "Fila 100% zerada"}
                 </span>
               </div>
             </div>
@@ -258,7 +286,7 @@ export function MetricsSLASection({
                 </p>
               </div>
 
-              <span className="text-xs text-muted-foreground font-mono">
+              <span className="text-xs text-muted-foreground font-mono font-medium">
                 {selectedCanal !== "todos"
                   ? `${filteredCriativos.length} de ${criativos.length} criativo(s)`
                   : `${criativos.length} criativo(s) ativo(s)`}
@@ -266,7 +294,7 @@ export function MetricsSLASection({
             </div>
 
             {filteredCriativos.length === 0 ? (
-              <div className="p-8 rounded-2xl bg-card border border-border text-center space-y-2">
+              <div className="p-10 rounded-2xl bg-card border border-border/80 text-center space-y-2">
                 <Sparkles className="w-8 h-8 text-muted-foreground mx-auto" />
                 <p className="text-xs text-muted-foreground">
                   {selectedCanal !== "todos"
@@ -278,7 +306,7 @@ export function MetricsSLASection({
                 </p>
               </div>
             ) : (
-              <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+              <div className="bg-card border border-border/80 rounded-2xl overflow-hidden shadow-2xs">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-muted/40 border-b border-border text-muted-foreground font-semibold">
@@ -292,10 +320,14 @@ export function MetricsSLASection({
                         <th className="py-3 px-4 text-right">Última Mensagem</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border">
+                    <tbody className="divide-y divide-border/60">
                       {filteredCriativos.map((c) => {
                         const isGoogle = c.canal?.toLowerCase() === "google" || c.ad_id.startsWith("google_");
-                        const link = c.source_url || (!isGoogle && c.ad_id ? `https://www.facebook.com/ads/library/?id=${c.ad_id}` : null);
+                        const link =
+                          c.source_url ||
+                          (!isGoogle && c.ad_id
+                            ? `https://www.facebook.com/ads/library/?id=${c.ad_id}`
+                            : null);
 
                         return (
                           <tr key={c.criativo_id || c.ad_id} className="hover:bg-muted/30 transition-colors">
@@ -312,7 +344,11 @@ export function MetricsSLASection({
                                   />
                                 ) : (
                                   <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-muted-foreground border border-border/60">
-                                    {isGoogle ? <Search className="w-4 h-4 text-blue-500" /> : <Sparkles className="w-4 h-4 opacity-60" />}
+                                    {isGoogle ? (
+                                      <Search className="w-4 h-4 text-blue-500" />
+                                    ) : (
+                                      <Sparkles className="w-4 h-4 opacity-60" />
+                                    )}
                                   </div>
                                 )}
                                 <div className="space-y-0.5 min-w-0">
@@ -353,13 +389,13 @@ export function MetricsSLASection({
                             </td>
 
                             <td className="py-3 px-4 text-center">
-                              <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
+                              <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-muted/80 border border-border/50">
                                 {c.total_mensagens || 0}
                               </span>
                             </td>
 
                             <td className="py-3 px-4 text-center">
-                              <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">
+                              <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
                                 {c.total_pessoas_unicas || 0}
                               </span>
                             </td>
@@ -377,11 +413,15 @@ export function MetricsSLASection({
                                   href={link}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                                  title={c.source_url ? "Abrir Link de Origem" : "Ver na Biblioteca de Anúncios da Meta"}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-all hover:scale-102"
+                                  title={
+                                    c.source_url
+                                      ? "Abrir Link de Origem"
+                                      : "Ver na Biblioteca de Anúncios da Meta"
+                                  }
                                 >
                                   <ExternalLink className="w-3 h-3" />
-                                  {c.source_url ? "Ver Link" : "Ad Library"}
+                                  <span>{c.source_url ? "Ver Link" : "Ad Library"}</span>
                                 </a>
                               ) : (
                                 <span className="text-[10px] text-muted-foreground/75 font-mono">
@@ -390,7 +430,7 @@ export function MetricsSLASection({
                               )}
                             </td>
 
-                            <td className="py-3 px-4 text-right text-muted-foreground text-[11px]">
+                            <td className="py-3 px-4 text-right text-muted-foreground text-[11px] font-mono">
                               {c.ultima_mensagem_at
                                 ? new Date(c.ultima_mensagem_at).toLocaleDateString("pt-BR", {
                                     day: "2-digit",
