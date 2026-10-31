@@ -379,9 +379,14 @@ async function run() {
           });
           if (actRes.ok) {
             console.log(`    ⚡ Ativado com sucesso.`);
+          } else {
+            const actErrText = await actRes.text();
+            console.error(`    ❌ Falha ao ativar "${wf.name}": ${actErrText}`);
+            failedWorkflows.push(wf.name);
           }
         } catch (actErr) {
-          console.warn(`    ⚠️ Não foi possível ativar "${wf.name}": ${actErr.message}`);
+          console.error(`    ❌ Exceção ao ativar "${wf.name}": ${actErr.message}`);
+          failedWorkflows.push(wf.name);
         }
       }
     }
