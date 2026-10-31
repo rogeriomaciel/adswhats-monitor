@@ -60,6 +60,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
   // Evolution API
   const [instanceName, setInstanceName] = useState("");
   const [apikey, setApikey] = useState("");
+  const [hasExistingApiKey, setHasExistingApiKey] = useState(false);
   const [apiUrl, setApiUrl] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
 
@@ -106,6 +107,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
         : rawInstance;
       setInstanceName(cleanInstance);
       setApikey(evo.apikey || "");
+      setHasExistingApiKey(Boolean(evo.hasApiKey || evo.apikey));
       
       const rawApiUrl = evo.apiUrl?.trim() || "";
       setApiUrl(rawApiUrl.includes("api.evolution.com.br") ? "" : rawApiUrl);
@@ -136,6 +138,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
       setHorarioDomingo("Fechado");
       setInstanceName("");
       setApikey("");
+      setHasExistingApiKey(false);
       setApiUrl("");
       setWebhookUrl("");
     }
@@ -909,7 +912,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
                       type="password"
                       value={apikey}
                       onChange={(e) => setApikey(e.target.value)}
-                      placeholder="Deixe em branco para usar a chave padrão"
+                      placeholder={hasExistingApiKey ? "•••••••• (Chave gravada no servidor - preencha só para alterar)" : "Deixe em branco para usar a chave padrão"}
                       className="w-full px-3 py-2 rounded-lg border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono"
                     />
                   </div>

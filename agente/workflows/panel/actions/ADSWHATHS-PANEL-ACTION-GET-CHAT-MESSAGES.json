@@ -29,9 +29,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  p.id,\n  p.loja_id,\n  l.nome AS loja_nome,\n  p.nome,\n  p.whatsapp,\n  p.picture_url,\n  p.status,\n  p.origem,\n  p.ultimo_criativo_id,\n  cr.titulo AS ultimo_criativo_titulo,\n  cr.tema AS ultimo_criativo_tema,\n  cr.ad_id AS ultimo_criativo_ad_id,\n  cr.canal AS ultimo_criativo_canal,\n  cr.media_url AS ultimo_criativo_media_url,\n  cr.source_url AS ultimo_criativo_source_url,\n  p.metadata_json,\n  p.total_mensagens,\n  p.last_message_at,\n  p.created_at\nFROM pessoas p\nJOIN lojas l ON l.id = p.loja_id\nLEFT JOIN criativos cr ON cr.id = p.ultimo_criativo_id\nWHERE p.id = $1\nLIMIT 1;\n",
+        "query": "SELECT \n  p.id,\n  p.loja_id,\n  l.nome AS loja_nome,\n  p.nome,\n  p.whatsapp,\n  p.picture_url,\n  p.status,\n  p.origem,\n  p.ultimo_criativo_id,\n  cr.titulo AS ultimo_criativo_titulo,\n  cr.tema AS ultimo_criativo_tema,\n  cr.ad_id AS ultimo_criativo_ad_id,\n  cr.canal AS ultimo_criativo_canal,\n  cr.media_url AS ultimo_criativo_media_url,\n  cr.source_url AS ultimo_criativo_source_url,\n  p.metadata_json,\n  p.total_mensagens,\n  p.last_message_at,\n  p.created_at\nFROM pessoas p\nJOIN lojas l ON l.id = p.loja_id\nLEFT JOIN criativos cr ON cr.id = p.ultimo_criativo_id\nWHERE p.id = $1\n  AND ($2::int IS NULL OR p.loja_id = $2::int)\nLIMIT 1;\n",
         "options": {
-          "queryReplacement": "={{ [$json.pessoaId] }}"
+          "queryReplacement": "={{ [$json.pessoaId, $json.lojaId] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -76,7 +76,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const contato = $('Consultar Contato').first().json || null;\nconst items = $input.all();\nconst mensagens = items.map(item => item.json).filter(m => m.id !== undefined);\n\nreturn {\n  json: {\n    ok: true,\n    contato,\n    mensagens\n  }\n};"
+        "jsCode": "const contato = $('Consultar Contato').first().json || null;\nconst items = $input.all();\nconst mensagens = items.map(item => item.json).filter(m => m.id !== undefined);\n\nif (!contato || !contato.id) {\n  return {\n    json: {\n      ok: false,\n      message: 'Contato não encontrado ou não pertence ao contexto da loja especificada.',\n      contato: null,\n      mensagens: []\n    }\n  };\n}\n\nreturn {\n  json: {\n    ok: true,\n    contato,\n    mensagens\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

@@ -39,6 +39,7 @@ export default function Dashboard() {
   const {
     data: lojas = [],
     isLoading,
+    isError,
     isRefetching,
     refetch,
   } = useQuery({
@@ -129,15 +130,29 @@ export default function Dashboard() {
           </div>
 
           <div className="p-5 rounded-2xl bg-card border border-border shadow-sm flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+            <div className={`p-3 rounded-xl ${
+              isError 
+                ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" 
+                : isLoading 
+                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" 
+                : "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+            }`}>
               <Shield className="w-6 h-6" />
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Gateway de Integração</p>
-              <h3 className="text-base font-bold font-display mt-1 text-emerald-600 dark:text-emerald-400">
-                API Online
+              <h3 className={`text-base font-bold font-display mt-1 ${
+                isError 
+                  ? "text-rose-600 dark:text-rose-400" 
+                  : isLoading 
+                  ? "text-amber-600 dark:text-amber-400" 
+                  : "text-emerald-600 dark:text-emerald-400"
+              }`}>
+                {isError ? "Erro Conexão" : isLoading ? "Checando..." : "Conectado"}
               </h3>
-              <span className="text-[10px] text-muted-foreground">Serviços Conectados</span>
+              <span className="text-[10px] text-muted-foreground">
+                {isError ? "Falha ao consultar API" : isLoading ? "Sincronizando..." : "Serviços Operacionais"}
+              </span>
             </div>
           </div>
         </div>

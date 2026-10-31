@@ -20,6 +20,8 @@ export interface DadosDaLoja {
 export interface EvolutionConfig {
   instanceName: string;
   apikey?: string;
+  hasApiKey?: boolean;
+  hasToken?: boolean;
   apiUrl?: string;
   webhookUrl?: string;
 }

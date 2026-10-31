@@ -21,11 +21,10 @@ jobs:
       - name: Install Dependencies
         run: bun install
 
-      - name: Check Lint & Build
+      - name: Typecheck & Build Frontend
         run: |
-          if [ -f "package.json" ]; then
-            bun run build || echo "Build step pending frontend initialization"
-          fi
+          bun run typecheck
+          bun run build
 
   # deploy-staging-workflows:
   #   name: Deploy Workflows to Staging n8n
