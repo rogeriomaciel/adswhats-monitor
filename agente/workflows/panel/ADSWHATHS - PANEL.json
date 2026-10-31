@@ -3,19 +3,8 @@
   "nodes": [
     {
       "parameters": {
-        "operation": "select",
-        "schema": {
-          "__rl": true,
-          "mode": "list",
-          "value": "public"
-        },
-        "table": {
-          "__rl": true,
-          "value": "configs",
-          "mode": "list",
-          "cachedResultName": "configs"
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "SELECT key::text, value::text, NULL::int AS user_id, NULL::boolean AS user_ativo, NULL::text AS user_role\nFROM public.configs\nUNION ALL\nSELECT '__active_user__' AS key, email::text AS value, id AS user_id, ativo AS user_ativo, COALESCE(role, 'admin')::text AS user_role\nFROM public.usuarios\nWHERE ativo = true;\n"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
@@ -50,7 +39,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const jwt = require('jsonwebtoken');\nconst triggerData = $('Initial').first().json || {};\nconst headers = triggerData.headers || {};\nconst body = triggerData.body || {};\nconst configData = $('Config').first().json || {};\n\nconst authHeader = headers.authorization || headers.Authorization || '';\nif (!authHeader || !authHeader.startsWith('Bearer ')) {\n  return { json: { action: 'ERROR', statusCode: 401, error: 'Acesso não autorizado: Token Bearer não fornecido.' } };\n}\n\nconst token = authHeader.split(' ')[1];\nconst configList = Array.isArray(configData?.itens) ? configData.itens : [];\n\nconst configsMap = {};\nconfigList.forEach(item => {\n  if (item && item.key) configsMap[item.key] = item.value;\n});\n\nconst secret = (configsMap.jwtkey || '').trim();\nif (!secret) {\n  return { json: { action: 'ERROR', statusCode: 500, error: 'Erro de configuração: chave jwtkey ausente na tabela configs.' } };\n}\n\ntry {\n  const decoded = jwt.verify(token, secret);\n  const rawAction = body.action || 'DEFAULT';\n  const normalizedAction = rawAction.toUpperCase().replace(/_/g, '-');\n  const targetWorkflowName = `ADSWHATHS-PANEL-ACTION-${normalizedAction}`;\n\n  return {\n    json: {\n      action: rawAction,\n      targetWorkflowName,\n      statusCode: 200,\n      user: decoded,\n      body: body.payload || body,\n      configs: configsMap\n    }\n  };\n} catch (err) {\n  return { json: { action: 'ERROR', statusCode: 403, error: 'Acesso negado: Token inválido ou expirado.' } };\n}"
+        "jsCode": "const jwt = require('jsonwebtoken');\nconst triggerData = $('Initial').first().json || {};\nconst headers = triggerData.headers || {};\nconst body = triggerData.body || {};\nconst configData = $('Config').first().json || {};\n\nconst authHeader = headers.authorization || headers.Authorization || '';\nif (!authHeader || !authHeader.startsWith('Bearer ')) {\n  return { json: { action: 'ERROR', statusCode: 401, error: 'Acesso não autorizado: Token Bearer não fornecido.' } };\n}\n\nconst token = authHeader.split(' ')[1];\nconst configList = Array.isArray(configData?.itens) ? configData.itens : [];\n\nconst configsMap = {};\nconfigList.forEach(item => {\n  if (item && item.key && item.key !== '__active_user__') configsMap[item.key] = item.value;\n});\n\nconst secret = (configsMap.jwtkey || '').trim();\nif (!secret) {\n  return { json: { action: 'ERROR', statusCode: 500, error: 'Erro de configuração: chave jwtkey ausente na tabela configs.' } };\n}\n\ntry {\n  const decoded = jwt.verify(token, secret);\n  const activeUser = configList.find(\n    item => item && item.key === '__active_user__' && Number(item.user_id) === Number(decoded.user_id) && item.user_ativo === true\n  );\n  if (!activeUser) {\n    return { json: { action: 'ERROR', statusCode: 403, error: 'Acesso revogado: Conta de usuário desativada ou inexistente.' } };\n  }\n  decoded.role = activeUser.user_role || decoded.role;\n\n  const rawAction = body.action || 'DEFAULT';\n  const normalizedAction = rawAction.toUpperCase().replace(/_/g, '-');\n  const targetWorkflowName = `ADSWHATHS-PANEL-ACTION-${normalizedAction}`;\n\n  return {\n    json: {\n      action: rawAction,\n      targetWorkflowName,\n      statusCode: 200,\n      user: decoded,\n      body: body.payload || body,\n      configs: configsMap\n    }\n  };\n} catch (err) {\n  return { json: { action: 'ERROR', statusCode: 403, error: 'Acesso negado: Token inválido ou expirado.' } };\n}"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

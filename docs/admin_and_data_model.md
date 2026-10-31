@@ -126,8 +126,9 @@ Guarda o histórico individualizado de cada mensagem trocada.
 * **Índices:** `INDEX (pessoa_id, created_at ASC)`, `UNIQUE (loja_id, message_id)`
 
 > [!NOTE]
-> **Rigor Matemático de SLA:** O `tempo_resposta_segundos` pertence exclusivamente à mensagem `inbound` que aguardava atendimento. Consultas agregadoras de média e percentil 50 (mediana) utilizam estritamente o predicado `FILTER (WHERE direcao = 'inbound' AND tempo_resposta_segundos IS NOT NULL)`.
-> **Segurança de Credenciais:** As chaves de API (`evolutionapi.apikey`) e tokens das instâncias são sanitizadas na saída do backend n8n e nunca chegam ao navegador do operador em texto puro.
+> **Rigor Matemático de SLA & Reconciliação Out-of-Order:** O `tempo_resposta_segundos` pertence exclusivamente à mensagem `inbound` que aguardava atendimento. Na ingestão atômica (`Gravar Mensagem`), respostas `outbound` fecham apenas pendências `inbound` com `timestamp_mensagem <= $outbound_ts`, e mensagens `inbound` atrasadas reconciliam-se automaticamente com respostas `outbound` posteriores já persistidas. Consultas agregadoras utilizam estritamente `FILTER (WHERE direcao = 'inbound' AND tempo_resposta_segundos IS NOT NULL)`.
+> **Atomicidade, Idempotência e Autenticação de Webhook:** O incremento de contadores de `pessoas` e `criativos`, o cálculo de SLA e o registro em `webhook_evolution_logs` ocorrem na mesma CTE transacional condicionada a `EXISTS (SELECT 1 FROM ins_msg)` (`ON CONFLICT (loja_id, message_id) DO NOTHING`), e o webhook `INBOUND` valida o segredo/apikey da origem e só confirma `200 OK` após a conclusão do fluxo (`responseMode: lastNode`).
+> **Segurança de Credenciais e Revogação de Sessão:** As chaves de API (`evolutionapi.apikey`) e tokens são sanitizadas em todos os endpoints (`GET-LOJAS`, `SAVE-LOJA`, `EVOLUTION-API`), preservando chaves customizadas por loja em edições sem reenvio, e o gateway `/panel` valida `usuarios.ativo = true` a cada requisição autenticada.
 
 ### E. Tabela `webhook_evolution_logs` (Barreira Anti-Replay)
 Evita processamento de mensagens duplicadas disparadas por retry de webhook.
