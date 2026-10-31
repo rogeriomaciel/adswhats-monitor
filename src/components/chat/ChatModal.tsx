@@ -19,6 +19,7 @@ import {
   Pause,
   Bot,
   CheckCheck,
+  CheckCircle2,
   AlertTriangle,
   Zap,
   CornerDownRight,
@@ -308,15 +309,27 @@ export function ChatModal({ isOpen, onClose, contato }: ChatModalProps) {
   const adTema = contato.ultimo_criativo_tema || ads?.adTema;
 
   // SLA Analysis
-  const slaSegundos = contato.tempo_primeira_resposta_segundos;
-  const foiRespondido = Boolean(slaSegundos && slaSegundos > 0);
-  const slaStatus = !foiRespondido
+  const primeiraMsgRespondida = mensagens.find(
+    (m) => m.direcao === "inbound" && m.tempo_resposta_segundos && m.tempo_resposta_segundos > 0
+  );
+  const slaSegundos =
+    primeiraMsgRespondida?.tempo_resposta_segundos ||
+    contato.tempo_medio_resposta_segundos;
+
+  const ultimaMsg = mensagens.length > 0 ? mensagens[mensagens.length - 1] : null;
+  const aguardandoResposta = ultimaMsg
+    ? ultimaMsg.direcao === "inbound"
+    : contato.ultima_direcao === "inbound";
+
+  const slaStatus = aguardandoResposta
     ? "sem_resposta"
-    : slaSegundos <= 300
+    : slaSegundos && slaSegundos <= 300
     ? "otimo"
-    : slaSegundos <= 900
+    : slaSegundos && slaSegundos <= 900
     ? "alerta"
-    : "critico";
+    : slaSegundos
+    ? "critico"
+    : "respondido";
 
   // Resumo Contextual de Inteligência Artificial
   const totalMsgs = mensagens.length;
@@ -429,10 +442,16 @@ export function ChatModal({ isOpen, onClose, contato }: ChatModalProps) {
                 SLA Estourado ({formatSLA(slaSegundos)})
               </span>
             )}
+            {slaStatus === "respondido" && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">
+                <CheckCircle2 className="w-3 h-3" />
+                {slaSegundos && slaSegundos > 0 ? `Atendido (${formatSLA(slaSegundos)})` : "Respondido"}
+              </span>
+            )}
             {slaStatus === "sem_resposta" && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-500 font-bold text-[11px] animate-pulse">
                 <AlertTriangle className="w-3 h-3" />
-                Aguardando Primeira Resposta
+                Aguardando Resposta
               </span>
             )}
           </div>
