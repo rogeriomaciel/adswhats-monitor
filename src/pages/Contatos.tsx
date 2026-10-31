@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getContatos, getLojas } from "@/lib/api";
+import { useRealtimeNotifications } from "@/lib/pusher";
 import { Pessoa } from "@/types/contato";
 import { Navbar } from "@/components/Navbar";
 import { ChatModal } from "@/components/chat/ChatModal";
@@ -70,6 +71,9 @@ export default function ContatosPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [activeChatContact, setActiveChatContact] = useState<Pessoa | null>(null);
+
+  // Escuta notificações em tempo real via Pusher
+  useRealtimeNotifications(selectedLojaId, activeChatContact?.id);
 
   // Debounce de 400ms para evitar disparar 1 requisição ao n8n por tecla digitada
   useEffect(() => {

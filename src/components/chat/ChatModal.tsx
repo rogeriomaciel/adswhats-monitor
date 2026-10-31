@@ -80,7 +80,7 @@ export function ChatModal({ isOpen, onClose, contato }: ChatModalProps) {
     enabled: isOpen && Boolean(contato?.id),
     staleTime: 0,
     refetchOnMount: "always",
-    refetchInterval: isOpen && Boolean(contato?.id) ? 5000 : false, // Atualiza apenas enquanto este modal estiver aberto e visível
+    refetchInterval: false, // Tempo real gerenciado via Pusher (elimina polling de 5s)
     refetchIntervalInBackground: false,
   });
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { getLojas } from "@/lib/api";
+import { useRealtimeNotifications } from "@/lib/pusher";
 import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/contexts/AuthContext";
 import { MetricsSLASection } from "@/components/dashboard/MetricsSLASection";
@@ -35,6 +36,9 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
   const [lojasViewMode, setLojasViewMode] = useState<"table" | "cards">("table");
+
+  // Escuta notificações em tempo real via Pusher
+  useRealtimeNotifications(selectedLojaId);
 
   const {
     data: lojas = [],

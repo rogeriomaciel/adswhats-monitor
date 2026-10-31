@@ -420,7 +420,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        3040,
+        3700,
         -200
       ],
       "id": "inbound-webhook-resp-ok",
@@ -459,6 +459,68 @@
       ],
       "id": "inbound-webhook-resp-unauth",
       "name": "Responder Webhook Nao Autorizado"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const resp = $input.item.json;\nconst configs = $('Extrair Metadados').item.json.configs || {};\nconst crypto = require('crypto');\n\nconst appId = (configs.pusher_app_id || '').trim();\nconst key = (configs.pusher_key || '').trim();\nconst secret = (configs.pusher_secret || '').trim();\nconst cluster = (configs.pusher_cluster || 'us2').trim();\n\nif (!appId || !key || !secret) {\n  return {\n    json: {\n      hasPusher: false,\n      resp\n    }\n  };\n}\n\nconst channels = ['adswhats-global'];\nif (resp.loja_id) {\n  channels.push('loja-' + resp.loja_id);\n}\n\nconst eventData = {\n  loja_id: resp.loja_id,\n  pessoa_id: resp.pessoa_id,\n  mensagem_id: resp.mensagem_id,\n  message_id: resp.message_id,\n  is_ad: resp.is_ad,\n  origem: resp.origem,\n  tipo: resp.tipo\n};\n\nconst payload = {\n  name: 'nova-mensagem',\n  channels: channels,\n  data: JSON.stringify(eventData)\n};\n\nconst bodyString = JSON.stringify(payload);\nconst bodyMd5 = crypto.createHash('md5').update(bodyString).digest('hex');\nconst authTimestamp = Math.floor(Date.now() / 1000);\nconst method = 'POST';\nconst path = '/apps/' + appId + '/events';\n\nconst stringToSign = method + '\\n' + path + '\\nauth_key=' + key + '&auth_timestamp=' + authTimestamp + '&auth_version=1.0&body_md5=' + bodyMd5;\nconst authSignature = crypto.createHmac('sha256', secret).update(stringToSign).digest('hex');\n\nconst publishUrl = 'https://api-' + cluster + '.pusher.com' + path + '?auth_key=' + key + '&auth_timestamp=' + authTimestamp + '&auth_version=1.0&body_md5=' + bodyMd5 + '&auth_signature=' + authSignature;\n\nreturn {\n  json: {\n    hasPusher: true,\n    publishUrl,\n    payload,\n    resp\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3040,
+        -200
+      ],
+      "id": "inbound-prep-pusher",
+      "name": "Preparar Evento Pusher"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasPusher }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3260,
+        -200
+      ],
+      "id": "inbound-if-pusher",
+      "name": "Tem Pusher Configurado?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.publishUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3480,
+        -280
+      ],
+      "id": "inbound-http-pusher",
+      "name": "Disparar Realtime Pusher",
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -700,6 +762,46 @@
       ]
     },
     "Resposta Sucesso": {
+      "main": [
+        [
+          {
+            "node": "Preparar Evento Pusher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Evento Pusher": {
+      "main": [
+        [
+          {
+            "node": "Tem Pusher Configurado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem Pusher Configurado?": {
+      "main": [
+        [
+          {
+            "node": "Disparar Realtime Pusher",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Webhook Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disparar Realtime Pusher": {
       "main": [
         [
           {
