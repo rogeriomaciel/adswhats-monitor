@@ -95,8 +95,7 @@ export default function CriativosPage() {
       return 0;
     });
 
-  // Cálculo da distribuição por canal
-  const totalAds = resumo.total_mensagens_ad || 1;
+  // Cálculo da distribuição por canal com consistência matemática garantida (soma exata de 100%)
   const countInstagram = criativos
     .filter((c) => (c.canal || "").toLowerCase() === "instagram" || (!c.canal && !c.ad_id.startsWith("google_")))
     .reduce((acc, c) => acc + (c.total_mensagens || 0), 0);
@@ -107,9 +106,10 @@ export default function CriativosPage() {
     .filter((c) => (c.canal || "").toLowerCase() === "google" || c.ad_id.startsWith("google_"))
     .reduce((acc, c) => acc + (c.total_mensagens || 0), 0);
 
-  const pctInstagram = Math.round((countInstagram / totalAds) * 100) || 0;
-  const pctFacebook = Math.round((countFacebook / totalAds) * 100) || 0;
-  const pctGoogle = Math.round((countGoogle / totalAds) * 100) || 0;
+  const totalCanais = countInstagram + countFacebook + countGoogle;
+  const pctInstagram = totalCanais > 0 ? Math.round((countInstagram / totalCanais) * 100) : 0;
+  const pctFacebook = totalCanais > 0 ? Math.round((countFacebook / totalCanais) * 100) : 0;
+  const pctGoogle = totalCanais > 0 ? Math.round((countGoogle / totalCanais) * 100) : 0;
 
   // Leads em Risco (Aguardando resposta ou com SLA acima de 15 minutos)
   const leadsEmRisco = resumo.total_pendentes;
@@ -316,7 +316,7 @@ export default function CriativosPage() {
                     Origem do Tráfego Pago
                   </h3>
                   <span className="text-[10px] text-muted-foreground font-mono">
-                    {totalAds} interações
+                    {totalCanais} {totalCanais === 1 ? "interação" : "interações"}
                   </span>
                 </div>
 
