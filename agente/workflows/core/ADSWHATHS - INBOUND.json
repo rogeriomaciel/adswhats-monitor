@@ -115,7 +115,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT m.id \nFROM public.mensagens m\nJOIN public.lojas l ON l.id = m.loja_id\nWHERE m.message_id = $1\n  AND l.ativo = true\n  AND (\n    l.whatsapp_loja = $2\n    OR l.config_json->'evolutionapi'->>'instanceName' = $3\n    OR ($3 != '' AND ('loja-' || l.id::text) = $3)\n  )\nLIMIT 1;\n",
+        "query": "SELECT m.id \nFROM public.mensagens m\nJOIN public.lojas l ON l.id = m.loja_id\nWHERE m.message_id = $1\n  AND l.ativo = true\n  AND (\n    l.config_json->'evolutionapi'->>'instanceName' = $3\n    OR ($3 != '' AND ('loja-' || l.id::text) = $3)\n    OR right(regexp_replace(l.whatsapp_loja, '\\D', '', 'g'), 10) = right(regexp_replace($2, '\\D', '', 'g'), 10)\n  )\nLIMIT 1;\n",
         "options": {
           "queryReplacement": "={{ [$json.messageId, $json.connectedPhone, $json.instanceName] }}"
         }
@@ -159,9 +159,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, nome, whatsapp_loja, config_json\nFROM lojas\nWHERE ativo = true\n  AND (\n    whatsapp_loja = $1\n    OR config_json->'evolutionapi'->>'instanceName' = $2\n    OR ($2 != '' AND ('loja-' || id::text) = $2)\n  )\n  AND $3::text != ''\n  AND (\n    $3::text = NULLIF($4::text, '')\n    OR $3::text = NULLIF($5::text, '')\n    OR $3::text = NULLIF(config_json->'evolutionapi'->>'apikey', '')\n    OR $3::text = NULLIF(config_json->'evolutionapi'->>'token', '')\n  )\nORDER BY id ASC\nLIMIT 1;\n",
+        "query": "SELECT id, nome, whatsapp_loja, config_json\nFROM public.lojas\nWHERE ativo = true\n  AND (\n    config_json->'evolutionapi'->>'instanceName' = $1\n    OR ('loja-' || id::text) = $1\n  )\n  AND (\n    whatsapp_loja IS NULL\n    OR whatsapp_loja = ''\n    OR regexp_replace(whatsapp_loja, '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g')\n    OR right(regexp_replace(whatsapp_loja, '\\D', '', 'g'), 10) = right(regexp_replace($2, '\\D', '', 'g'), 10)\n  )\nORDER BY \n  CASE \n    WHEN right(regexp_replace(whatsapp_loja, '\\D', '', 'g'), 10) = right(regexp_replace($2, '\\D', '', 'g'), 10) THEN 0\n    ELSE 1\n  END,\n  id ASC\nLIMIT 1;\n",
         "options": {
-          "queryReplacement": "={{ [\n  $('Extrair Metadados').item.json.connectedPhone,\n  $('Extrair Metadados').item.json.instanceName,\n  $('Extrair Metadados').item.json.incomingAuthKey,\n  $('Extrair Metadados').item.json.configs?.evolution_api_key || '',\n  $('Extrair Metadados').item.json.configs?.webhook_secret || ''\n] }}"
+          "queryReplacement": "={{ [\n  $('Extrair Metadados').first().json.instanceName,\n  $('Extrair Metadados').first().json.connectedPhone\n] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
