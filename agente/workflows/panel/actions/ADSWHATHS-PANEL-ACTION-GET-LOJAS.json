@@ -36,7 +36,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const items = $input.all();\nconst lojas = items.map(item => item.json);\n\nreturn {\n  json: {\n    ok: true,\n    lojas: lojas\n  }\n};"
+        "jsCode": "const items = $input.all();\nconst lojas = items.map(item => {\n  const loja = { ...item.json };\n  if (loja.config_json) {\n    const config = { ...loja.config_json };\n    if (config.evolutionapi) {\n      const { apikey, token, ...safeEvolution } = config.evolutionapi;\n      config.evolutionapi = {\n        ...safeEvolution,\n        hasApiKey: Boolean(apikey),\n        hasToken: Boolean(token)\n      };\n    }\n    loja.config_json = config;\n  }\n  return loja;\n});\n\nreturn {\n  json: {\n    ok: true,\n    lojas: lojas\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

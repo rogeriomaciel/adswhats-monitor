@@ -83,7 +83,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE lojas\nSET \n  nome = $1,\n  whatsapp_loja = CASE WHEN $2 != '' THEN $2 ELSE whatsapp_loja END,\n  ativo = $3,\n  config_json = $4::jsonb,\n  updated_at = NOW()\nWHERE id = $5\nRETURNING *;\n",
+        "query": "UPDATE lojas\nSET \n  nome = $1,\n  whatsapp_loja = CASE WHEN $2 != '' THEN $2 ELSE whatsapp_loja END,\n  ativo = $3,\n  config_json = CASE \n    WHEN ($4::jsonb->'evolutionapi'->>'apikey') IS NULL \n      OR ($4::jsonb->'evolutionapi'->>'apikey') = '' \n      OR ($4::jsonb->'evolutionapi'->>'apikey') = '***'\n    THEN jsonb_set(\n      $4::jsonb, \n      '{evolutionapi,apikey}', \n      COALESCE(to_jsonb(config_json->'evolutionapi'->>'apikey'), '\"\"'::jsonb)\n    )\n    ELSE $4::jsonb\n  END,\n  updated_at = NOW()\nWHERE id = $5\nRETURNING *;\n",
         "options": {
           "queryReplacement": "={{ [$json.nome, $json.whatsapp_loja, $json.ativo, JSON.stringify($json.config_json), $json.id] }}"
         }
@@ -318,7 +318,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const loja = $input.item.json;\nconst instanceName = loja.config_json?.evolutionapi?.instanceName || `loja-${loja.id}`;\n\nreturn {\n  json: {\n    ok: true,\n    message: 'Loja salva e instância verificada com sucesso!',\n    loja: {\n      ...loja,\n      instanceName\n    }\n  }\n};"
+        "jsCode": "const loja = $input.item.json;\nconst instanceName = loja.config_json?.evolutionapi?.instanceName || `loja-${loja.id}`;\n\n// Sanitizar config_json para que apikey e token nunca cheguem ao frontend\nconst safeLoja = { ...loja };\nif (safeLoja.config_json) {\n  const config = { ...safeLoja.config_json };\n  if (config.evolutionapi) {\n    const { apikey, token, ...safeEvolution } = config.evolutionapi;\n    config.evolutionapi = {\n      ...safeEvolution,\n      hasApiKey: Boolean(apikey),\n      hasToken: Boolean(token)\n    };\n  }\n  safeLoja.config_json = config;\n}\n\nreturn {\n  json: {\n    ok: true,\n    message: 'Loja salva e instância verificada com sucesso!',\n    loja: {\n      ...safeLoja,\n      instanceName\n    }\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

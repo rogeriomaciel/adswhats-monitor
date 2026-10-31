@@ -118,9 +118,16 @@ Guarda o histórico individualizado de cada mensagem trocada.
 * `conteudo` (TEXT) — texto da mensagem ou descrição/caption
 * `midia_url` (TEXT, opcional) — URL ou caminho da mídia/áudio
 * `status_entrega` (VARCHAR: `sent`, `delivered`, `read`)
-* `timestamp_mensagem` (TIMESTAMPTZ) — data/hora registrada no WhatsApp
+* `tempo_resposta_segundos` (INTEGER, opcional) — tempo de atendimento em segundos (calculado exclusivamente na mensagem inbound respondida)
+* `respondida_em` (TIMESTAMPTZ, opcional) — momento em que o atendente enviou a resposta
+* `respondida_por_mensagem_id` (VARCHAR, opcional) — ID da mensagem outbound que encerrou a pendência
+* `timestamp_mensagem` (TIMESTAMPTZ) — data/hora original registrada no WhatsApp (extraída do messageTimestamp do evento, imune à latência de rede/servidor)
 * `created_at` (TIMESTAMPTZ, default now())
 * **Índices:** `INDEX (pessoa_id, created_at ASC)`, `UNIQUE (loja_id, message_id)`
+
+> [!NOTE]
+> **Rigor Matemático de SLA:** O `tempo_resposta_segundos` pertence exclusivamente à mensagem `inbound` que aguardava atendimento. Consultas agregadoras de média e percentil 50 (mediana) utilizam estritamente o predicado `FILTER (WHERE direcao = 'inbound' AND tempo_resposta_segundos IS NOT NULL)`.
+> **Segurança de Credenciais:** As chaves de API (`evolutionapi.apikey`) e tokens das instâncias são sanitizadas na saída do backend n8n e nunca chegam ao navegador do operador em texto puro.
 
 ### E. Tabela `webhook_evolution_logs` (Barreira Anti-Replay)
 Evita processamento de mensagens duplicadas disparadas por retry de webhook.
