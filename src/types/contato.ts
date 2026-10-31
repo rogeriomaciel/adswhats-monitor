@@ -111,6 +111,8 @@ export interface ResumoMetricasSLA {
   total_pendentes: number;
   tempo_medio_segundos: number;
   tempo_mediano_segundos: number;
+  tempo_medio_ad_segundos?: number;
+  tempo_mediano_ad_segundos?: number;
   taxa_resposta_pct: number;
   leads_esfriando?: number;
   leads_ad_sem_resposta?: number;
@@ -123,12 +125,15 @@ export interface LojaPerformance {
   total_mensagens: number;
   total_pessoas: number;
   total_ads: number;
+  total_leads_ad?: number;
   total_respondidas: number;
   total_pendentes?: number;
   leads_esfriando?: number;
   tempo_medio_segundos: number;
-  taxa_resposta_pct?: number;
-  score_saude?: number;
+  tempo_medio_ad_segundos?: number;
+  tempo_mediano_ad_segundos?: number;
+  taxa_resposta_pct?: number | null;
+  score_saude?: number | null;
 }
 
 export interface PessoaAudit {
@@ -138,6 +143,7 @@ export interface PessoaAudit {
   nome?: string;
   whatsapp: string;
   origem: string;
+  is_ad_lead?: boolean;
   ultimo_criativo_titulo?: string;
   ultimo_criativo_ad_id?: string;
   ultimo_criativo_media_url?: string;

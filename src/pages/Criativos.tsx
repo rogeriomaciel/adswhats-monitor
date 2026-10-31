@@ -29,6 +29,7 @@ import {
   BarChart3,
   CheckCheck,
   Eye,
+  Filter,
 } from "lucide-react";
 
 function formatSLA(segundos?: number | null) {
@@ -74,14 +75,26 @@ function formatDateRelative(isoString?: string) {
   }
 }
 
-function calculateScore(loja: LojaPerformance): number {
+/**
+ * Calcula o Score da loja (0-100).
+ * Retorna `null` caso a loja não tenha NENHUMA interação no período para evitar atribuir 100 pontos falsos.
+ */
+function calculateScore(loja: LojaPerformance): number | null {
+  const totalMsgs = loja.total_mensagens || 0;
+  const totalPessoas = loja.total_pessoas || 0;
+  if (totalMsgs === 0 && totalPessoas === 0) {
+    return null;
+  }
+
   if (typeof loja.score_saude === "number" && !isNaN(loja.score_saude) && loja.score_saude > 0) {
     return Math.min(100, Math.max(0, loja.score_saude));
   }
-  const taxa = loja.taxa_resposta_pct ?? (loja.total_mensagens > 0 ? (loja.total_respondidas / Math.max(1, loja.total_mensagens)) * 100 : 100);
+
+  const taxa = loja.taxa_resposta_pct ?? (totalMsgs > 0 ? (loja.total_respondidas / Math.max(1, totalMsgs)) * 100 : 100);
   const ptsTaxa = (taxa / 100) * 45;
 
-  const sla = loja.tempo_medio_segundos || 0;
+  // Dá preferência ao SLA dos anúncios, ou mediana, evitando distorções por mensagens da madrugada
+  const sla = loja.tempo_mediano_ad_segundos || loja.tempo_medio_ad_segundos || loja.tempo_medio_segundos || 0;
   let ptsSla = 35;
   if (sla > 1800) ptsSla = 0;
   else if (sla > 900) ptsSla = 12;
@@ -98,6 +111,7 @@ export default function CriativosPage() {
   const [dias, setDias] = useState<number>(30);
   const [selectedCanal, setSelectedCanal] = useState<string>("todos");
   const [creativeSort, setCreativeSort] = useState<"leads" | "sla" | "messages" | "qualidade">("leads");
+  const [auditLeadFilter, setAuditLeadFilter] = useState<"ads" | "todos">("ads");
   const [selectedChatContato, setSelectedChatContato] = useState<Pessoa | null>(null);
 
   // Buscar Lojas cadastradas
@@ -129,6 +143,8 @@ export default function CriativosPage() {
     total_leads_ad: 0,
     tempo_medio_segundos: 0,
     tempo_mediano_segundos: 0,
+    tempo_medio_ad_segundos: 0,
+    tempo_mediano_ad_segundos: 0,
     taxa_resposta_pct: 0,
   };
 
@@ -144,25 +160,46 @@ export default function CriativosPage() {
     return lojasPerformance.find((lp) => lp.loja_id === selectedLojaId) || null;
   }, [lojasPerformance, selectedLojaId]);
 
-  // Cálculo de Score da Carteira ou da Loja Selecionada
+  // Lojas com atividade real no período (exclui quem não tem nenhuma mensagem/pessoa)
   const activeLojas = useMemo(() => {
     return lojasPerformance.filter((lp) => (lp.total_mensagens || 0) > 0 || (lp.total_pessoas || 0) > 0);
   }, [lojasPerformance]);
 
   const carteiraScore = useMemo(() => {
     if (activeLojas.length === 0) return 100;
-    const sum = activeLojas.reduce((acc, l) => acc + calculateScore(l), 0);
-    return Math.round(sum / activeLojas.length);
+    const scoredLojas = activeLojas.map(calculateScore).filter((s): s is number => s !== null);
+    if (scoredLojas.length === 0) return 100;
+    const sum = scoredLojas.reduce((acc, s) => acc + s, 0);
+    return Math.round(sum / scoredLojas.length);
   }, [activeLojas]);
 
   const currentStoreScore = useMemo(() => {
-    if (!selectedLojaPerf) return 100;
+    if (!selectedLojaPerf) return null;
     return calculateScore(selectedLojaPerf);
   }, [selectedLojaPerf]);
 
-  // Contagem de lojas com gargalo crítico (SLA > 15m ou leads esfriando)
+  // SLA Efetivo de Anúncios (prioriza tempo de anúncios e mediana para eliminar distorções de mensagens da madrugada)
+  const effectiveSLA = useMemo(() => {
+    if (resumo.tempo_mediano_ad_segundos && resumo.tempo_mediano_ad_segundos > 0) {
+      return resumo.tempo_mediano_ad_segundos;
+    }
+    if (resumo.tempo_medio_ad_segundos && resumo.tempo_medio_ad_segundos > 0) {
+      return resumo.tempo_medio_ad_segundos;
+    }
+    if (resumo.tempo_mediano_segundos && resumo.tempo_mediano_segundos > 0) {
+      return resumo.tempo_mediano_segundos;
+    }
+    return resumo.tempo_medio_segundos || 0;
+  }, [resumo]);
+
+  const isOperacaoAgil = effectiveSLA > 0 && effectiveSLA <= 300;
+
+  // Lojas com gargalo crítico (leads esfriando no momento ou SLA de anúncios muito alto)
   const lojasEmRisco = useMemo(() => {
-    return activeLojas.filter((lp) => (lp.tempo_medio_segundos || 0) > 900 || (lp.leads_esfriando || 0) > 0);
+    return activeLojas.filter((lp) => {
+      const slaLoja = lp.tempo_mediano_ad_segundos || lp.tempo_medio_ad_segundos || lp.tempo_medio_segundos || 0;
+      return (lp.leads_esfriando || 0) > 0 || slaLoja > 900;
+    });
   }, [activeLojas]);
 
   // Filtragem e ordenação inteligente dos criativos
@@ -211,7 +248,6 @@ export default function CriativosPage() {
 
   // Leads em Risco (Aguardando resposta > 15m)
   const leadsEsfriandoTotal = resumo.leads_esfriando || 0;
-  const isOperacaoAgil = resumo.tempo_medio_segundos > 0 && resumo.tempo_medio_segundos <= 300;
 
   const lojaOptions = useMemo<DropdownOption<number | null>[]>(() => {
     return [
@@ -225,6 +261,21 @@ export default function CriativosPage() {
   }, [lojas]);
 
   const periodLabel = dias === 1 ? "Hoje" : `${dias} dias`;
+
+  // Leads filtrados para auditoria na Visão 2
+  const adLeadsCount = useMemo(() => {
+    return leadsPessoas.filter((p) => p.is_ad_lead || p.ultimo_criativo_titulo || p.ultimo_criativo_ad_id || (p.origem && p.origem.includes("ads"))).length;
+  }, [leadsPessoas]);
+
+  const displayedLeads = useMemo(() => {
+    if (auditLeadFilter === "ads") {
+      const filtered = leadsPessoas.filter(
+        (p) => p.is_ad_lead || p.ultimo_criativo_titulo || p.ultimo_criativo_ad_id || (p.origem && p.origem.includes("ads"))
+      );
+      return filtered.length > 0 ? filtered : leadsPessoas;
+    }
+    return leadsPessoas;
+  }, [leadsPessoas, auditLeadFilter]);
 
   // Função para abrir o ChatModal a partir de um lead da lista
   const handleOpenChat = (p: PessoaAudit) => {
@@ -355,14 +406,14 @@ export default function CriativosPage() {
                 {/* Banner de Diagnóstico Executivo da Carteira */}
                 <div
                   className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs ${
-                    lojasEmRisco.length > 0
+                    leadsEsfriandoTotal > 0
                       ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
                       : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
                   }`}
                 >
                   <div className="flex items-start sm:items-center gap-3">
                     <div className="p-2 rounded-xl bg-background/80 shrink-0">
-                      {lojasEmRisco.length > 0 ? (
+                      {leadsEsfriandoTotal > 0 ? (
                         <Flame className="w-5 h-5 text-rose-500" />
                       ) : (
                         <ShieldCheck className="w-5 h-5 text-emerald-500" />
@@ -370,24 +421,27 @@ export default function CriativosPage() {
                     </div>
                     <div>
                       <h3 className="text-xs sm:text-sm font-bold font-display text-foreground">
-                        {lojasEmRisco.length > 0
-                          ? `Alerta de Risco: ${lojasEmRisco.length} ${
-                              lojasEmRisco.length === 1 ? "loja cliente está" : "lojas clientes estão"
-                            } com demora no atendimento no período (${periodLabel})`
-                          : `Carteira Saudável: Todas as lojas ativas atendem anúncios com agilidade (${periodLabel})`}
+                        {leadsEsfriandoTotal > 0
+                          ? `Alerta de Fila: Há ${leadsEsfriandoTotal} ${
+                              leadsEsfriandoTotal === 1 ? "lead de anúncio esfriando" : "leads de anúncios esfriando"
+                            } sem resposta há mais de 15 minutos!`
+                          : `Carteira Saudável: Zero leads abandonados na fila de anúncios (${periodLabel})`}
                       </h3>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {lojasEmRisco.length > 0
-                          ? "Quando o atendimento demora mais de 15 minutos, a probabilidade de conversão do lead cai em até 80%."
-                          : "O tempo médio de resposta está dentro da meta recomendada de menos de 5 minutos."}
+                        {leadsEsfriandoTotal > 0
+                          ? "Quando o atendimento demora mais de 15 minutos, a probabilidade de fechamento cai drasticamente."
+                          : `SLA efetivo nos anúncios: ${formatSLA(effectiveSLA)} — equipe atendendo com agilidade.`}
                       </p>
                     </div>
                   </div>
 
-                  {lojasEmRisco.length > 0 && (
-                    <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-rose-500 text-white shrink-0 self-start sm:self-center">
-                      Ação Necessária
-                    </span>
+                  {leadsEsfriandoTotal > 0 && (
+                    <Link
+                      to="/contatos?filter=sem_resposta"
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white shrink-0 self-start sm:self-center transition-colors shadow-xs"
+                    >
+                      Socorrer Fila Agora →
+                    </Link>
                   )}
                 </div>
 
@@ -429,7 +483,7 @@ export default function CriativosPage() {
                           {carteiraScore >= 80 ? "🟢 Excelente" : carteiraScore >= 50 ? "🟡 Regular" : "🔴 Crítico"}
                         </span>
                         <span className="text-[10px] text-muted-foreground font-mono">
-                          {activeLojas.length} lojas avaliadas
+                          {activeLojas.length === 1 ? "1 loja avaliada" : `${activeLojas.length} lojas avaliadas`}
                         </span>
                       </div>
                     </div>
@@ -464,18 +518,18 @@ export default function CriativosPage() {
                       <p className="text-[11px] text-muted-foreground mt-1 font-medium flex items-center justify-between group-hover:text-rose-500 transition-colors">
                         <span>
                           {leadsEsfriandoTotal > 0
-                            ? "Leads de anúncio sem resposta"
-                            : "Nenhum lead abandonado"}
+                            ? `${leadsEsfriandoTotal === 1 ? "1 lead sem resposta" : `${leadsEsfriandoTotal} leads sem resposta`}`
+                            : "Zero leads na fila de espera"}
                         </span>
                         <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform shrink-0 ml-1" />
                       </p>
                     </div>
                   </Link>
 
-                  {/* Card 3: Velocidade Média da Carteira */}
+                  {/* Card 3: Velocidade Efetiva nos Anúncios */}
                   <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground font-semibold">SLA Médio de Retorno</span>
+                      <span className="text-xs text-muted-foreground font-semibold">SLA Médio nos Anúncios</span>
                       <div
                         className={`p-2 rounded-xl ${
                           isOperacaoAgil ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
@@ -486,7 +540,7 @@ export default function CriativosPage() {
                     </div>
                     <div>
                       <h3 className="text-3xl font-extrabold font-display tracking-tight text-foreground">
-                        {formatSLA(resumo.tempo_medio_segundos)}
+                        {formatSLA(effectiveSLA)}
                       </h3>
                       <div className="flex items-center gap-2 mt-1.5">
                         <span
@@ -494,7 +548,7 @@ export default function CriativosPage() {
                             isOperacaoAgil ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500"
                           }`}
                         >
-                          {isOperacaoAgil ? "⚡ Abaixo de 5 min" : "⚠️ Demora Acima do Ideal"}
+                          {isOperacaoAgil ? "⚡ Resposta Imediata" : "⚠️ Demora Acima do Ideal"}
                         </span>
                         <span className="text-[10px] text-muted-foreground font-mono">
                           Meta: &lt;5min
@@ -517,7 +571,7 @@ export default function CriativosPage() {
                       </h3>
                       <div className="flex items-center gap-2 mt-1.5">
                         <span className="text-[10px] text-muted-foreground font-mono">
-                          {resumo.total_mensagens_ad} mensagens trocadas
+                          {totalCanais === 1 ? "1 mensagem de anúncio" : `${totalCanais} mensagens de anúncio`}
                         </span>
                       </div>
                     </div>
@@ -537,7 +591,7 @@ export default function CriativosPage() {
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground font-mono">
-                      {lojasPerformance.length} lojas monitoradas
+                      {lojasPerformance.length} {lojasPerformance.length === 1 ? "loja cadastrada" : "lojas cadastradas"}
                     </span>
                   </div>
 
@@ -549,10 +603,11 @@ export default function CriativosPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {lojasPerformance.map((lp) => {
                         const score = calculateScore(lp);
-                        const sla = lp.tempo_medio_segundos || 0;
+                        const hasActivity = score !== null;
+                        const sla = lp.tempo_mediano_ad_segundos || lp.tempo_medio_ad_segundos || lp.tempo_medio_segundos || 0;
                         const isSlaBom = sla > 0 && sla <= 300;
                         const esfriando = lp.leads_esfriando || 0;
-                        const taxa = lp.taxa_resposta_pct ?? 100;
+                        const taxa = lp.taxa_resposta_pct;
 
                         return (
                           <div
@@ -573,39 +628,49 @@ export default function CriativosPage() {
                                   </span>
                                 </div>
 
-                                <div
-                                  className={`px-2.5 py-1 rounded-xl font-mono font-bold text-xs flex items-center gap-1 border shrink-0 ${
-                                    score >= 80
-                                      ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/25"
-                                      : score >= 50
-                                      ? "bg-amber-500/10 text-amber-500 border-amber-500/25"
-                                      : "bg-rose-500/10 text-rose-500 border-rose-500/25"
-                                  }`}
-                                  title="Score de Saúde da Loja (0-100)"
-                                >
-                                  <span>{score}</span>
-                                  <span className="text-[10px] opacity-70">pts</span>
-                                </div>
+                                {hasActivity ? (
+                                  <div
+                                    className={`px-2.5 py-1 rounded-xl font-mono font-bold text-xs flex items-center gap-1 border shrink-0 ${
+                                      score >= 80
+                                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/25"
+                                        : score >= 50
+                                        ? "bg-amber-500/10 text-amber-500 border-amber-500/25"
+                                        : "bg-rose-500/10 text-rose-500 border-rose-500/25"
+                                    }`}
+                                    title="Score de Atendimento da Loja (0-100)"
+                                  >
+                                    <span>{score}</span>
+                                    <span className="text-[10px] opacity-70">pts</span>
+                                  </div>
+                                ) : (
+                                  <span className="px-2.5 py-1 rounded-xl font-mono text-[10px] font-bold bg-muted text-muted-foreground border border-border shrink-0">
+                                    Sem Atividade
+                                  </span>
+                                )}
                               </div>
 
                               {/* Telemetria Rápida */}
                               <div className="grid grid-cols-2 gap-2 text-xs">
                                 <div className="p-2 rounded-xl bg-card border border-border/50">
-                                  <span className="text-[10px] text-muted-foreground block font-medium">SLA Atendimento</span>
+                                  <span className="text-[10px] text-muted-foreground block font-medium">SLA Anúncios</span>
                                   <span
                                     className={`text-xs font-bold font-mono inline-flex items-center gap-1 ${
-                                      isSlaBom ? "text-emerald-500" : "text-amber-500"
+                                      !hasActivity
+                                        ? "text-muted-foreground"
+                                        : isSlaBom
+                                        ? "text-emerald-500"
+                                        : "text-amber-500"
                                     }`}
                                   >
                                     <Clock className="w-3 h-3" />
-                                    {formatSLA(sla)}
+                                    {hasActivity ? formatSLA(sla) : "--"}
                                   </span>
                                 </div>
 
                                 <div className="p-2 rounded-xl bg-card border border-border/50">
                                   <span className="text-[10px] text-muted-foreground block font-medium">Taxa Retorno</span>
                                   <span className="text-xs font-bold font-mono text-foreground">
-                                    {taxa}%
+                                    {taxa !== null && taxa !== undefined ? `${taxa}%` : "--"}
                                   </span>
                                 </div>
                               </div>
@@ -615,14 +680,14 @@ export default function CriativosPage() {
                                 <div className="px-2.5 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[11px] font-semibold flex items-center justify-between">
                                   <span className="flex items-center gap-1.5">
                                     <Flame className="w-3.5 h-3.5" />
-                                    {esfriando} {esfriando === 1 ? "lead esfriando" : "leads esfriando"}
+                                    {esfriando === 1 ? "1 lead esfriando" : `${esfriando} leads esfriando`}
                                   </span>
                                   <span className="text-[9px] uppercase font-bold tracking-wider">Atenção</span>
                                 </div>
                               ) : (
                                 <div className="px-2.5 py-1.5 rounded-xl bg-muted/60 text-muted-foreground text-[11px] flex items-center gap-1.5 font-medium">
                                   <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
-                                  <span>Zero fila pendente</span>
+                                  <span>{hasActivity ? "Zero fila pendente" : "Nenhum lead pendente"}</span>
                                 </div>
                               )}
                             </div>
@@ -651,7 +716,7 @@ export default function CriativosPage() {
                         Origem do Tráfego Pago
                       </h3>
                       <span className="text-[10px] text-muted-foreground font-mono">
-                        {totalCanais} interações
+                        {totalCanais === 1 ? "1 interação" : `${totalCanais} interações`}
                       </span>
                     </div>
 
@@ -669,7 +734,7 @@ export default function CriativosPage() {
                         </div>
                         <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-pink-500 to-rose-500 rounded-full"
+                            className="h-full bg-gradient-to-r from-pink-500 to-rose-500 rounded-full transition-all"
                             style={{ width: `${pctInstagram}%` }}
                           />
                         </div>
@@ -688,7 +753,7 @@ export default function CriativosPage() {
                         </div>
                         <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-blue-600 rounded-full"
+                            className="h-full bg-blue-600 rounded-full transition-all"
                             style={{ width: `${pctFacebook}%` }}
                           />
                         </div>
@@ -707,7 +772,7 @@ export default function CriativosPage() {
                         </div>
                         <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-sky-500 rounded-full"
+                            className="h-full bg-sky-500 rounded-full transition-all"
                             style={{ width: `${pctGoogle}%` }}
                           />
                         </div>
@@ -715,7 +780,7 @@ export default function CriativosPage() {
                     </div>
 
                     <div className="pt-3 border-t border-border/60 text-[11px] text-muted-foreground leading-relaxed">
-                      💡 <strong>Inteligência Automática:</strong> Toda mensagem inbound vinda de anúncio com token ou link de campanha é mapeada instantaneamente sem depender de APIs lentas ou caras.
+                      💡 <strong>Rastreamento Automático:</strong> Os anúncios Click-to-WhatsApp e Google Ads são identificados no exato momento em que o cliente abre a conversa.
                     </div>
                   </div>
 
@@ -761,7 +826,7 @@ export default function CriativosPage() {
                                     {c.titulo || `Anúncio #${c.ad_id}`}
                                   </h4>
                                   <span className="text-[10px] text-muted-foreground font-mono">
-                                    {c.total_pessoas_unicas || 0} leads únicos • SLA {formatSLA(c.tempo_medio_segundos)}
+                                    {c.total_pessoas_unicas === 1 ? "1 lead único" : `${c.total_pessoas_unicas} leads únicos`} • SLA {formatSLA(c.tempo_medio_segundos)}
                                   </span>
                                 </div>
                               </div>
@@ -772,9 +837,10 @@ export default function CriativosPage() {
                                     href={link}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="p-1.5 rounded-lg bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                                    className="px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
                                     title="Ver anúncio na biblioteca"
                                   >
+                                    <span>Ver</span>
                                     <ArrowUpRight className="w-3.5 h-3.5" />
                                   </a>
                                 )}
@@ -803,34 +869,44 @@ export default function CriativosPage() {
                     </span>
                     <span
                       className={`text-xs font-bold font-mono px-2.5 py-0.5 rounded-full border ${
-                        currentStoreScore >= 80
+                        currentStoreScore !== null && currentStoreScore >= 80
                           ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/25"
-                          : currentStoreScore >= 50
+                          : currentStoreScore !== null && currentStoreScore >= 50
                           ? "bg-amber-500/10 text-amber-500 border-amber-500/25"
                           : "bg-rose-500/10 text-rose-500 border-rose-500/25"
                       }`}
                     >
-                      Score de Atendimento: {currentStoreScore}/100
+                      {currentStoreScore !== null ? `Score de Atendimento: ${currentStoreScore}/100` : "Sem Atividade"}
                     </span>
                   </div>
 
                   <p className="text-sm text-foreground leading-relaxed font-medium">
-                    {resumo.tempo_medio_segundos > 900 || leadsEsfriandoTotal > 0 ? (
+                    {leadsEsfriandoTotal > 0 ? (
                       <>
-                        🚨 <strong>Atenção ao Gargalo de Atendimento:</strong> No período de {periodLabel}, as campanhas
-                        geraram <span className="font-bold text-foreground">{resumo.total_leads_ad || resumo.total_inbound} leads</span> para
-                        a <span className="font-bold text-foreground">{selectedLoja?.nome}</span>, mas a equipe levou em média{" "}
-                        <span className="font-bold text-rose-500">{formatSLA(resumo.tempo_medio_segundos)}</span> para responder. Há{" "}
-                        <span className="font-bold text-rose-500">{leadsEsfriandoTotal} leads aguardando retorno há mais de 15 minutos</span>.
-                        Antes de alterar orçamentos ou criativos, a equipe comercial precisa agilizar o primeiro contato para evitar queima de verba.
+                        🚨 <strong>Alerta de Leads Esfriando na Loja:</strong> Há{" "}
+                        <span className="font-bold text-rose-500">
+                          {leadsEsfriandoTotal === 1 ? "1 lead de anúncio" : `${leadsEsfriandoTotal} leads de anúncios`}
+                        </span>{" "}
+                        aguardando primeiro retorno há mais de 15 minutos! A equipe da{" "}
+                        <span className="font-bold text-foreground">{selectedLoja?.nome}</span> precisa atender esses clientes
+                        urgentemente para evitar perda de vendas e queima de verba de tráfego.
+                      </>
+                    ) : isOperacaoAgil ? (
+                      <>
+                        ⚡ <strong>Operação Comercial Afiada:</strong> No período de {periodLabel}, a equipe da{" "}
+                        <span className="font-bold text-foreground">{selectedLoja?.nome}</span> atendeu os leads de anúncio
+                        com agilidade exemplar: <span className="font-bold text-emerald-500">{formatSLA(effectiveSLA)}</span> e taxa de
+                        retorno de <span className="font-bold text-emerald-500">{resumo.taxa_resposta_pct}%</span>, com{" "}
+                        <span className="font-bold text-emerald-500">zero fila pendente</span>. O terreno está propício para escalar
+                        os melhores criativos com segurança de conversão.
                       </>
                     ) : (
                       <>
-                        ⚡ <strong>Operação de Recepção Afiada:</strong> A equipe da{" "}
-                        <span className="font-bold text-foreground">{selectedLoja?.nome}</span> está respondendo os leads de anúncios
-                        com agilidade média de <span className="font-bold text-emerald-500">{formatSLA(resumo.tempo_medio_segundos)}</span> e
-                        taxa de resposta de <span className="font-bold text-emerald-500">{resumo.taxa_resposta_pct}%</span>. O terreno está
-                        preparado para escala nos criativos vencedores.
+                        ⚠️ <strong>Atenção ao Tempo de Resposta:</strong> A equipe da{" "}
+                        <span className="font-bold text-foreground">{selectedLoja?.nome}</span> levou em média{" "}
+                        <span className="font-bold text-amber-500">{formatSLA(effectiveSLA)}</span> para atender os leads de
+                        anúncios. No momento não há fila acumulada, mas recomenda-se orientar a equipe a responder em menos de 5 minutos
+                        para elevar a taxa de fechamento.
                       </>
                     )}
                   </p>
@@ -844,9 +920,9 @@ export default function CriativosPage() {
                       <span className="text-xs text-muted-foreground font-semibold">Score da Recepção</span>
                       <div
                         className={`p-2 rounded-xl ${
-                          currentStoreScore >= 80
+                          currentStoreScore !== null && currentStoreScore >= 80
                             ? "bg-emerald-500/10 text-emerald-500"
-                            : currentStoreScore >= 50
+                            : currentStoreScore !== null && currentStoreScore >= 50
                             ? "bg-amber-500/10 text-amber-500"
                             : "bg-rose-500/10 text-rose-500"
                         }`}
@@ -857,12 +933,12 @@ export default function CriativosPage() {
                     <div>
                       <div className="flex items-baseline gap-2">
                         <h3 className="text-3xl font-extrabold font-display tracking-tight text-foreground">
-                          {currentStoreScore}
+                          {currentStoreScore !== null ? currentStoreScore : "--"}
                         </h3>
-                        <span className="text-xs text-muted-foreground font-mono">/ 100</span>
+                        {currentStoreScore !== null && <span className="text-xs text-muted-foreground font-mono">/ 100</span>}
                       </div>
                       <span className="text-[11px] text-muted-foreground mt-1 block">
-                        Baseado em SLA, taxa e fila
+                        Baseado em SLA nos anúncios, taxa e fila
                       </span>
                     </div>
                   </div>
@@ -894,16 +970,20 @@ export default function CriativosPage() {
                         {leadsEsfriandoTotal}
                       </h3>
                       <p className="text-[11px] text-muted-foreground mt-1 font-medium flex items-center justify-between group-hover:text-rose-500 transition-colors">
-                        <span>Aguardando resposta da recepção</span>
+                        <span>
+                          {leadsEsfriandoTotal > 0
+                            ? "Aguardando resposta da recepção"
+                            : "Zero leads na fila de espera"}
+                        </span>
                         <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform shrink-0 ml-1" />
                       </p>
                     </div>
                   </Link>
 
-                  {/* Card 3: Tempo Médio de Resposta (SLA) */}
+                  {/* Card 3: Tempo Médio de Resposta (SLA) nos Anúncios */}
                   <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground font-semibold">SLA Médio da Loja</span>
+                      <span className="text-xs text-muted-foreground font-semibold">SLA nos Anúncios</span>
                       <div
                         className={`p-2 rounded-xl ${
                           isOperacaoAgil ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
@@ -914,7 +994,7 @@ export default function CriativosPage() {
                     </div>
                     <div>
                       <h3 className="text-3xl font-extrabold font-display tracking-tight text-foreground">
-                        {formatSLA(resumo.tempo_medio_segundos)}
+                        {formatSLA(effectiveSLA)}
                       </h3>
                       <div className="flex items-center gap-2 mt-1.5">
                         <span
@@ -922,7 +1002,7 @@ export default function CriativosPage() {
                             isOperacaoAgil ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500"
                           }`}
                         >
-                          {isOperacaoAgil ? "⚡ Resposta Ágil" : "⚠️ Demora Crítica"}
+                          {isOperacaoAgil ? "⚡ Resposta Imediata" : "⚠️ Demora Acima da Meta"}
                         </span>
                       </div>
                     </div>
@@ -938,10 +1018,10 @@ export default function CriativosPage() {
                     </div>
                     <div>
                       <h3 className="text-3xl font-extrabold font-display tracking-tight text-foreground">
-                        {resumo.total_leads_ad || resumo.total_mensagens_ad}
+                        {resumo.total_leads_ad || adLeadsCount || resumo.total_mensagens_ad}
                       </h3>
                       <span className="text-[11px] text-muted-foreground font-medium mt-1 block">
-                        {resumo.taxa_resposta_pct}% atendidos
+                        {resumo.taxa_resposta_pct}% dos leads atendidos
                       </span>
                     </div>
                   </div>
@@ -956,7 +1036,7 @@ export default function CriativosPage() {
                         Raio-X de Criativos da Loja: Conversas Reais vs Curiosos
                       </h2>
                       <p className="text-xs text-muted-foreground">
-                        Identifique se o criativo atrai compradores dispostos a dialogar ou curiosos de 1 mensagem.
+                        Identifique se o anúncio atrai compradores dispostos a dialogar ou curiosos de 1 mensagem.
                       </p>
                     </div>
 
@@ -1088,7 +1168,7 @@ export default function CriativosPage() {
                                 <span className="text-[9px] text-muted-foreground block">
                                   {pctProfundas >= 35
                                     ? "🏆 Alta qualificação de público"
-                                    : "⚠️ Maioria são curiosos de 1 mensagem"}
+                                    : "💬 Engajamento em desenvolvimento"}
                                 </span>
                               </div>
 
@@ -1113,7 +1193,7 @@ export default function CriativosPage() {
                             {/* Ações */}
                             <div className="pt-2 border-t border-border/50 flex items-center justify-between">
                               <span className="text-[10px] font-mono text-muted-foreground">
-                                {c.total_mensagens || 0} msgs trocadas
+                                {c.total_mensagens === 1 ? "1 msg trocada" : `${c.total_mensagens || 0} msgs trocadas`}
                               </span>
 
                               {link && (
@@ -1135,30 +1215,51 @@ export default function CriativosPage() {
                   )}
                 </div>
 
-                {/* Auditoria Individual de Leads Recentes da Loja (com botão de auditar chat) */}
+                {/* Auditoria Individual de Leads da Loja (com abas de filtro e botão de auditar chat) */}
                 <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
                     <div>
                       <h2 className="text-sm font-bold font-display uppercase tracking-wider text-foreground flex items-center gap-2">
                         <Users className="w-4 h-4 text-primary" />
                         Auditoria de Leads Recentes no WhatsApp
                       </h2>
                       <p className="text-xs text-muted-foreground">
-                        Clique em &ldquo;Auditar Conversa&rdquo; para ver a transcrição completa do atendimento deste lead.
+                        Clique em &ldquo;Auditar Chat&rdquo; para ver a transcrição completa do atendimento deste lead.
                       </p>
                     </div>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {leadsPessoas.length} contatos analisados
-                    </span>
+
+                    {/* Abas de Filtro: Apenas Anúncios vs Todos */}
+                    <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border text-xs shrink-0">
+                      <button
+                        onClick={() => setAuditLeadFilter("ads")}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                          auditLeadFilter === "ads"
+                            ? "bg-background text-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Leads de Anúncio ({adLeadsCount})
+                      </button>
+                      <button
+                        onClick={() => setAuditLeadFilter("todos")}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                          auditLeadFilter === "todos"
+                            ? "bg-background text-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Todos ({leadsPessoas.length})
+                      </button>
+                    </div>
                   </div>
 
-                  {leadsPessoas.length === 0 ? (
+                  {displayedLeads.length === 0 ? (
                     <div className="py-12 text-center text-xs text-muted-foreground">
                       Nenhum lead com conversa registrado no período selecionado.
                     </div>
                   ) : (
                     <div className="divide-y divide-border/60">
-                      {leadsPessoas.map((p) => {
+                      {displayedLeads.map((p) => {
                         const isEsfriando = (p.leads_esfriando || 0) > 0;
                         const sla = p.tempo_medio_segundos || 0;
                         const isSlaBom = sla > 0 && sla <= 300;
@@ -1181,6 +1282,12 @@ export default function CriativosPage() {
                                     <span className="px-1.5 py-0.2 rounded-md bg-rose-500/15 text-rose-500 text-[9px] font-bold flex items-center gap-1">
                                       <Flame className="w-3 h-3" />
                                       Esfriando
+                                    </span>
+                                  )}
+                                  {p.is_ad_lead && (
+                                    <span className="px-1.5 py-0.2 rounded-md bg-pink-500/15 text-pink-500 text-[9px] font-bold flex items-center gap-1">
+                                      <Sparkles className="w-2.5 h-2.5" />
+                                      Tráfego Pago
                                     </span>
                                   )}
                                 </div>
