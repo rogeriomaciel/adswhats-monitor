@@ -281,6 +281,7 @@ async function run() {
     });
 
     console.log('\n📥 [Passo 1/2] Sincronizando workflows no n8n...');
+    const failedWorkflows = [];
     for (const wf of localWorkflows) {
       const isUpdate = existingMap.has(wf.name.trim());
       let targetId = localNameToId.get(wf.name.trim());
@@ -343,6 +344,8 @@ async function run() {
         } else {
           const errText = await updateRes.text();
           console.error(`  ❌ Falha ao atualizar "${wf.name}": ${errText}`);
+          failedWorkflows.push(wf.name);
+          continue;
         }
       } else {
         const createRes = await fetch(`${API_BASE_URL}/workflows`, {
@@ -362,6 +365,8 @@ async function run() {
         } else {
           const errText = await createRes.text();
           console.error(`  ❌ Falha ao criar "${wf.name}": ${errText}`);
+          failedWorkflows.push(wf.name);
+          continue;
         }
       }
 
@@ -382,6 +387,10 @@ async function run() {
     }
 
     console.log('\n' + '═'.repeat(70));
+    if (failedWorkflows.length > 0) {
+      console.error(`❌ Deploy finalizado com falhas em ${failedWorkflows.length} workflow(s): ${failedWorkflows.join(', ')}`);
+      process.exit(1);
+    }
     console.log('✅ Deploy de workflows concluído com sucesso!');
   } catch (error) {
     console.error(`\n❌ Falha durante a execução do deploy: ${error.message}`);
