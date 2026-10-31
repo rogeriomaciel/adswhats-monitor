@@ -71,3 +71,4 @@ export function useRealtimeNotifications(selectedLojaId?: number | null, activeP
     };
   }, [queryClient, selectedLojaId, activePessoaId]);
 }
+

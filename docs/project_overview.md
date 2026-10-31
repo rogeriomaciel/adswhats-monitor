@@ -55,3 +55,6 @@ flowchart LR
 | **Integração WhatsApp** | Evolution API | ✅ Definido | Webhooks de mensagens recebidas e controle de instâncias. |
 | **Autenticação & RBAC** | E-mail ou WhatsApp + Senha / Token Bearer | ✅ Definido | Validação via `crypt`, assinatura JWT com chave em `configs` e controle de permissão `admin` vs `operador`. |
 | **Cache & Polling UI** | React Query (`staleTime: 5m`) + Debounce | ✅ Definido | Navegação em memória sem refetch redundante; auto-refresh restrito ao `ChatModal` aberto e limites de tentativas no QR Code. |
+| **Notificações em Tempo Real** | Pusher Channels (`private-loja-{id}`) | ✅ Definido | Eventos instantâneos de mensagens, novos contatos e status de instâncias via WebSocket. |
+| **Ergonomia e UI/UX** | Mobile-First + Command Palette + Sheet Drawer | ✅ Definido | BottomNav para dispositivos móveis, paleta com tons de cinza suaves (sem ofuscação no modo claro), paleta `⌘K` global e inspeção em gaveta deslizante sem perda de contexto. |
+| **Persistência de Tema** | `localStorage` + Script Zero-FOUC no `<head>` | ✅ Definido | Alternância entre Dark/Light persistida e sincronizada entre abas sem flash visual. |

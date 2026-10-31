@@ -47,6 +47,7 @@ export interface Pessoa {
   ultimo_criativo_media_url?: string;
   ultimo_criativo_source_url?: string;
   tempo_medio_resposta_segundos?: number;
+  tempo_primeira_resposta_segundos?: number;
   total_mensagens_ad?: number;
   metadata_json?: {
     isAd?: boolean;
@@ -74,6 +75,7 @@ export interface Mensagem {
   tipo: "texto" | "audio" | "imagem" | "video" | "documento" | string;
   conteudo: string;
   midia_url?: string;
+  media_url?: string;
   status_entrega?: string;
   is_ad?: boolean;
   criativo_id?: number;
