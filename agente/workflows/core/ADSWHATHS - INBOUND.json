@@ -5,8 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "adswhatsinbound",
-        "responseMode": "lastNode",
-        "responseData": "firstEntryJson",
+        "responseMode": "responseNode",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",
@@ -160,7 +159,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, nome, whatsapp_loja, config_json\nFROM lojas\nWHERE ativo = true\n  AND (\n    whatsapp_loja = $1\n    OR config_json->'evolutionapi'->>'instanceName' = $2\n    OR ($2 != '' AND ('loja-' || id::text) = $2)\n  )\n  AND (\n    $3::text != ''\n    AND (\n      $3::text = NULLIF($4::text, '')\n      OR $3::text = NULLIF($5::text, '')\n      OR $3::text = NULLIF(config_json->'evolutionapi'->>'apikey', '')\n      OR $3::text = NULLIF(config_json->'evolutionapi'->>'token', '')\n    )\n  )\nORDER BY id ASC\nLIMIT 1;\n",
+        "query": "SELECT id, nome, whatsapp_loja, config_json\nFROM lojas\nWHERE ativo = true\n  AND (\n    whatsapp_loja = $1\n    OR config_json->'evolutionapi'->>'instanceName' = $2\n    OR ($2 != '' AND ('loja-' || id::text) = $2)\n  )\n  AND (\n    (\n      $3::text != ''\n      AND (\n        $3::text = NULLIF($4::text, '')\n        OR $3::text = NULLIF($5::text, '')\n        OR $3::text = NULLIF(config_json->'evolutionapi'->>'apikey', '')\n        OR $3::text = NULLIF(config_json->'evolutionapi'->>'token', '')\n      )\n    )\n    OR (\n      $3::text = ''\n      AND NULLIF($5::text, '') IS NULL\n    )\n  )\nORDER BY id ASC\nLIMIT 1;\n",
         "options": {
           "queryReplacement": "={{ [\n  $('Extrair Metadados').item.json.connectedPhone,\n  $('Extrair Metadados').item.json.instanceName,\n  $('Extrair Metadados').item.json.incomingAuthKey,\n  $('Extrair Metadados').item.json.configs?.evolution_api_key || '',\n  $('Extrair Metadados').item.json.configs?.webhook_secret || ''\n] }}"
         }
@@ -411,6 +410,55 @@
       ],
       "id": "inbound-resp-ok",
       "name": "Resposta Sucesso"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        3040,
+        -200
+      ],
+      "id": "inbound-webhook-resp-ok",
+      "name": "Responder Webhook Sucesso"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"ignored\": true\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        380,
+        60
+      ],
+      "id": "inbound-webhook-resp-ignored",
+      "name": "Responder Webhook Ignorado"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": false,\n  \"error\": \"Loja não identificada ou credencial de webhook inválida.\"\n}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        820,
+        -40
+      ],
+      "id": "inbound-webhook-resp-unauth",
+      "name": "Responder Webhook Nao Autorizado"
     }
   ],
   "connections": {
@@ -477,6 +525,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Responder Webhook Ignorado",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -499,6 +554,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Responder Webhook Ignorado",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -518,6 +580,13 @@
         [
           {
             "node": "É Áudio com Base64?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Webhook Nao Autorizado",
             "type": "main",
             "index": 0
           }
@@ -624,6 +693,17 @@
         [
           {
             "node": "Resposta Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta Sucesso": {
+      "main": [
+        [
+          {
+            "node": "Responder Webhook Sucesso",
             "type": "main",
             "index": 0
           }
