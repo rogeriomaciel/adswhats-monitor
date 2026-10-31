@@ -213,9 +213,13 @@ export default function Dashboard() {
 
           {/* KPI 4: Leads Sem Resposta (Urgência) */}
           <Link
-            to="/contatos"
+            to={
+              selectedLojaId
+                ? `/contatos?filter=sem_resposta&loja_id=${selectedLojaId}`
+                : "/contatos?filter=sem_resposta"
+            }
             className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs space-y-2 hover:border-rose-500/40 transition-all group block"
-            title="Clique para abrir a fila de atendimento"
+            title="Clique para abrir a fila de leads aguardando resposta"
           >
             <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-xs font-semibold">Aguardando Retorno</span>
@@ -285,9 +289,11 @@ export default function Dashboard() {
                     isGoogle ||
                     Boolean(contato.metadata_json?.isAd);
 
-                  const semResposta =
-                    !contato.tempo_primeira_resposta_segundos ||
-                    contato.tempo_primeira_resposta_segundos <= 0;
+                  // Determina se o lead está realmente aguardando retorno da loja
+                  // Se a última mensagem foi 'outbound', a loja já respondeu o cliente!
+                  // Só é 'aguardando' se a última mensagem partiu do cliente ('inbound')
+                  const isAguardandoResposta = contato.ultima_direcao === "inbound";
+                  const tempoMedio = contato.tempo_medio_resposta_segundos;
 
                   const matchedLoja = lojas.find(
                     (l) => String(l.id) === String(contato.loja_id)
@@ -344,14 +350,15 @@ export default function Dashboard() {
                           </span>
                         )}
 
-                        {semResposta ? (
+                        {isAguardandoResposta ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-500 border border-rose-500/25 text-[10px] font-bold animate-pulse">
                             <AlertTriangle className="w-2.5 h-2.5" />
-                            Sem Resposta
+                            Aguardando Resposta
                           </span>
                         ) : (
-                          <span className="text-[11px] font-mono text-emerald-500 font-bold hidden sm:inline">
-                            {formatSLA(contato.tempo_primeira_resposta_segundos)}
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-medium">
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            {tempoMedio && tempoMedio > 0 ? `SLA: ${formatSLA(tempoMedio)}` : "Respondido"}
                           </span>
                         )}
 

@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { getLojas, getMetricsSLA } from "@/lib/api";
 import { Navbar } from "@/components/Navbar";
 import { CustomDropdown, DropdownOption } from "@/components/ui/CustomDropdown";
@@ -21,6 +22,7 @@ import {
   Flame,
   Award,
   ArrowUpRight,
+  ArrowRight,
 } from "lucide-react";
 
 function formatSLA(segundos?: number | null) {
@@ -227,11 +229,21 @@ export default function CriativosPage() {
                 </div>
               </div>
 
-              {/* Card 2: Leads em Risco (Esfriando) */}
-              <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3">
+              {/* Card 2: Leads em Risco (Esfriando) com Link Direto para Fila Filtrada */}
+              <Link
+                to={
+                  selectedLojaId
+                    ? `/contatos?filter=sem_resposta&loja_id=${selectedLojaId}`
+                    : "/contatos?filter=sem_resposta"
+                }
+                title="Clique para ver os leads aguardando resposta"
+                className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3 hover:border-rose-500/50 hover:shadow-md transition-all group block cursor-pointer"
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground font-semibold">Leads Esfriando (Sem Resposta)</span>
-                  <div className={`p-2 rounded-xl ${leadsEmRisco > 0 ? "bg-rose-500/10 text-rose-500" : "bg-emerald-500/10 text-emerald-500"}`}>
+                  <span className="text-xs text-muted-foreground font-semibold group-hover:text-foreground transition-colors">
+                    Leads Esfriando (Sem Resposta)
+                  </span>
+                  <div className={`p-2 rounded-xl transition-transform group-hover:scale-110 ${leadsEmRisco > 0 ? "bg-rose-500/10 text-rose-500" : "bg-emerald-500/10 text-emerald-500"}`}>
                     {leadsEmRisco > 0 ? <Flame className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                   </div>
                 </div>
@@ -239,13 +251,16 @@ export default function CriativosPage() {
                   <h3 className={`text-3xl font-extrabold font-display tracking-tight ${leadsEmRisco > 0 ? "text-rose-500" : "text-emerald-500"}`}>
                     {leadsEmRisco}
                   </h3>
-                  <p className="text-[11px] text-muted-foreground mt-1 font-medium">
-                    {leadsEmRisco > 0
-                      ? "Verba de anúncio em risco por falta de retorno"
-                      : "Zero leads abandonados na fila"}
+                  <p className="text-[11px] text-muted-foreground mt-1 font-medium flex items-center justify-between group-hover:text-rose-500 transition-colors">
+                    <span>
+                      {leadsEmRisco > 0
+                        ? "Verba de anúncio em risco por falta de retorno"
+                        : "Zero leads abandonados na fila"}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform shrink-0 ml-1" />
                   </p>
                 </div>
-              </div>
+              </Link>
 
               {/* Card 3: Taxa de Resposta com Barra Visual */}
               <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3">

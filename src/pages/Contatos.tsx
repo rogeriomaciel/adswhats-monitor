@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getContatos, getLojas } from "@/lib/api";
 import { useRealtimeNotifications } from "@/lib/pusher";
@@ -20,6 +21,7 @@ import {
   LayoutGrid,
   List,
   AlertTriangle,
+  CheckCircle2,
   Zap,
   Clock,
   Radio,
@@ -71,13 +73,30 @@ function formatSLA(segundos?: number | null) {
 type QuickFilter = "todos" | "sem_resposta" | "sla_estourado" | "meta_ads" | "google_ads";
 
 export default function ContatosPage() {
-  const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
+  const [searchParams] = useSearchParams();
+
+  const initialFilter = (searchParams.get("filter") as QuickFilter) || "todos";
+  const initialLojaId = searchParams.get("loja_id") ? Number(searchParams.get("loja_id")) : null;
+
+  const [selectedLojaId, setSelectedLojaId] = useState<number | null>(initialLojaId);
   const [selectedOrigem, setSelectedOrigem] = useState<string>("todos");
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>("todos");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialFilter);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [activeChatContact, setActiveChatContact] = useState<Pessoa | null>(null);
+
+  // Sincroniza com parâmetros de URL (ex: ?filter=sem_resposta&loja_id=2)
+  useEffect(() => {
+    const filterParam = searchParams.get("filter") as QuickFilter | null;
+    if (filterParam && ["todos", "sem_resposta", "sla_estourado", "meta_ads", "google_ads"].includes(filterParam)) {
+      setQuickFilter(filterParam);
+    }
+    const lojaParam = searchParams.get("loja_id");
+    if (lojaParam !== null) {
+      setSelectedLojaId(lojaParam ? Number(lojaParam) : null);
+    }
+  }, [searchParams]);
 
   // Escuta notificações em tempo real via Pusher
   useRealtimeNotifications(selectedLojaId, activeChatContact?.id);
@@ -115,13 +134,14 @@ export default function ContatosPage() {
   // Aplicação do filtro rápido de urgência (SLA / Origem)
   const filteredContatos = contatos.filter((c) => {
     if (quickFilter === "sem_resposta") {
-      return !c.tempo_primeira_resposta_segundos || c.tempo_primeira_resposta_segundos <= 0;
+      return c.ultima_direcao === "inbound";
     }
     if (quickFilter === "sla_estourado") {
-      return (
-        (c.tempo_primeira_resposta_segundos && c.tempo_primeira_resposta_segundos > 900) ||
-        (c.tempo_medio_resposta_segundos && c.tempo_medio_resposta_segundos > 900)
-      );
+      const waitTimeExceeded =
+        c.ultima_direcao === "inbound" &&
+        c.last_message_at &&
+        Date.now() - new Date(c.last_message_at).getTime() > 15 * 60 * 1000;
+      return waitTimeExceeded || Boolean(c.tempo_medio_resposta_segundos && c.tempo_medio_resposta_segundos > 900);
     }
     if (quickFilter === "meta_ads") {
       return c.origem === "instagram_ads" || c.origem === "facebook_ads" || Boolean(c.metadata_json?.isAd && c.metadata_json?.canal !== "google");
@@ -140,13 +160,14 @@ export default function ContatosPage() {
       c.origem === "google_ads" ||
       Boolean(c.metadata_json?.isAd)
   ).length;
-  const semRespostaCount = contatos.filter(
-    (c) => !c.tempo_primeira_resposta_segundos || c.tempo_primeira_resposta_segundos <= 0
-  ).length;
+  // Sem resposta = cliente mandou mensagem e a loja ainda não respondeu (inbound)
+  const semRespostaCount = contatos.filter((c) => c.ultima_direcao === "inbound").length;
   const slaCriticoCount = contatos.filter(
     (c) =>
-      (c.tempo_primeira_resposta_segundos && c.tempo_primeira_resposta_segundos > 900) ||
-      (c.tempo_medio_resposta_segundos && c.tempo_medio_resposta_segundos > 900)
+      (c.ultima_direcao === "inbound" &&
+        c.last_message_at &&
+        Date.now() - new Date(c.last_message_at).getTime() > 15 * 60 * 1000) ||
+      Boolean(c.tempo_medio_resposta_segundos && c.tempo_medio_resposta_segundos > 900)
   ).length;
 
   const lojaOptions = useMemo<DropdownOption<number | null>[]>(() => {
@@ -429,8 +450,8 @@ export default function ContatosPage() {
                     const isFacebook = contato.origem === "facebook_ads";
                     const isAd = isGoogle || isInstagram || isFacebook || Boolean(contato.metadata_json?.isAd);
 
-                    const slaPrimeiraResposta = contato.tempo_primeira_resposta_segundos;
-                    const semResposta = !slaPrimeiraResposta || slaPrimeiraResposta <= 0;
+                    const isAguardandoResposta = contato.ultima_direcao === "inbound";
+                    const tempoResposta = contato.tempo_medio_resposta_segundos;
 
                     return (
                       <tr
@@ -508,21 +529,27 @@ export default function ContatosPage() {
                                 {formatDateRelative(contato.last_message_at)}
                               </span>
 
-                              {semResposta ? (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold">
-                                  Sem Resposta
+                              {isAguardandoResposta ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold text-[10px] animate-pulse">
+                                  <AlertTriangle className="w-2.5 h-2.5" />
+                                  Aguardando Resposta
                                 </span>
                               ) : (
                                 <span
-                                  className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded font-mono font-bold ${
-                                    slaPrimeiraResposta <= 300
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded font-mono font-medium text-[10px] ${
+                                    tempoResposta && tempoResposta <= 300
                                       ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                                      : slaPrimeiraResposta <= 900
+                                      : tempoResposta && tempoResposta <= 900
                                       ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                                      : "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                                      : tempoResposta
+                                      ? "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                                      : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                                   }`}
                                 >
-                                  SLA: {formatSLA(slaPrimeiraResposta)}
+                                  <CheckCircle2 className="w-2.5 h-2.5" />
+                                  {tempoResposta && tempoResposta > 0
+                                    ? `SLA: ${formatSLA(tempoResposta)}`
+                                    : "Respondido"}
                                 </span>
                               )}
                             </div>
@@ -616,13 +643,17 @@ export default function ContatosPage() {
                           </span>
                         )}
 
-                        {contato.tempo_primeira_resposta_segundos ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-[10px] font-bold">
-                            SLA: {formatSLA(contato.tempo_primeira_resposta_segundos)}
+                        {contato.ultima_direcao === "inbound" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold text-[10px] animate-pulse">
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                            Aguardando Resposta
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold text-[10px]">
-                            Sem Resposta
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-[10px] font-medium border border-emerald-500/20">
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            {contato.tempo_medio_resposta_segundos && contato.tempo_medio_resposta_segundos > 0
+                              ? `SLA: ${formatSLA(contato.tempo_medio_resposta_segundos)}`
+                              : "Respondido"}
                           </span>
                         )}
                       </div>
