@@ -86,3 +86,12 @@ jobs:
         env:
           N8N_API_KEY: ${{ secrets.PROD_N8N_API_KEY }}
           N8N_HOST: ${{ secrets.PROD_N8N_HOST }}
+
+      - name: Replay Today's Blocked Inbound Executions (One-off)
+        if: contains(github.event.head_commit.message, 'inbound') || contains(github.event.head_commit.message, 'replay')
+        run: bun run scripts/replay_inbound_executions.js --execute
+        continue-on-error: true
+        env:
+          N8N_API_KEY: ${{ secrets.PROD_N8N_API_KEY }}
+          N8N_HOST: ${{ secrets.PROD_N8N_HOST }}
+          EVOLUTION_WEBHOOK_URL: "https://${{ secrets.PROD_N8N_HOST }}/app/adswhatsinbound"
