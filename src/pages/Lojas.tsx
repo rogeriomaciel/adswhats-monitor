@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getLojas } from "@/lib/api";
+import { getLojas, deleteLoja, restoreLoja } from "@/lib/api";
 import { Loja } from "@/types/loja";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
@@ -28,6 +28,9 @@ import {
   Copy,
   LayoutGrid,
   List,
+  Trash2,
+  RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,11 +48,20 @@ function formatPhone(phone: string) {
 export default function LojasPage() {
   const { user } = useAuth();
   const isAdmin = (user?.role || "admin").toLowerCase() === "admin";
+  const isRootUser = Number(user?.user_id || user?.id) === 1;
+
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLoja, setSelectedLoja] = useState<Loja | null>(null);
   const [modalTab, setModalTab] = useState<"geral" | "social" | "localizacao" | "evolution">("geral");
+
+  // Visualização de lojas excluídas (disponível exclusivamente para root user 1)
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [lojaToDelete, setLojaToDelete] = useState<Loja | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [lojaToRestore, setLojaToRestore] = useState<Loja | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const {
     data: lojas = [],
@@ -57,8 +69,8 @@ export default function LojasPage() {
     isRefetching,
     refetch,
   } = useQuery({
-    queryKey: ["lojas"],
-    queryFn: getLojas,
+    queryKey: ["lojas", showDeleted],
+    queryFn: () => getLojas(showDeleted),
   });
 
   // Sincroniza selectedLoja com os dados atualizados das lojas após refetch
@@ -72,6 +84,10 @@ export default function LojasPage() {
   }, [lojas, selectedLoja]);
 
   const filteredLojas = lojas.filter((loja) => {
+    // Se estiver na aba de excluídas, exibe apenas as que possuem deleted_at
+    // Se estiver na aba normal, exibe apenas as ativas/não excluídas
+    if (showDeleted ? !loja.deleted_at : !!loja.deleted_at) return false;
+
     const term = searchTerm.toLowerCase();
     const nome = loja.nome?.toLowerCase() || "";
     const whatsapp = loja.whatsapp_loja || "";
@@ -79,10 +95,11 @@ export default function LojasPage() {
     return nome.includes(term) || whatsapp.includes(term) || email.includes(term);
   });
 
-  const totalLojas = lojas.length;
-  const lojasAtivas = lojas.filter((l) => l.ativo).length;
-  const totalContatos = lojas.reduce((acc, l) => acc + (l.total_contatos || 0), 0);
-  const totalMensagens = lojas.reduce((acc, l) => acc + (l.total_mensagens || 0), 0);
+  const totalLojas = lojas.filter((l) => !l.deleted_at).length;
+  const lojasAtivas = lojas.filter((l) => l.ativo && !l.deleted_at).length;
+  const lojasExcluidas = lojas.filter((l) => !!l.deleted_at).length;
+  const totalContatos = lojas.filter((l) => !l.deleted_at).reduce((acc, l) => acc + (l.total_contatos || 0), 0);
+  const totalMensagens = lojas.filter((l) => !l.deleted_at).reduce((acc, l) => acc + (l.total_mensagens || 0), 0);
 
   const handleNovaLoja = () => {
     if (!isAdmin) {
@@ -104,6 +121,60 @@ export default function LojasPage() {
     setSelectedLoja(loja);
     setModalTab("evolution");
     setIsModalOpen(true);
+  };
+
+  const handleDeleteLoja = (loja: Loja) => {
+    if (!isAdmin) {
+      toast.error("Apenas administradores podem excluir lojas.");
+      return;
+    }
+    setLojaToDelete(loja);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!lojaToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await deleteLoja(lojaToDelete.id);
+      if (res.ok) {
+        toast.success(res.message || `Loja "${lojaToDelete.nome}" excluída com sucesso!`);
+        setLojaToDelete(null);
+        refetch();
+      } else {
+        toast.error(res.message || "Erro ao excluir loja.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro de conexão ao excluir loja.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleRestoreLoja = (loja: Loja) => {
+    if (!isRootUser) {
+      toast.error("Apenas o usuário raiz (ID 1) tem permissão para restaurar lojas excluídas.");
+      return;
+    }
+    setLojaToRestore(loja);
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!lojaToRestore) return;
+    setIsRestoring(true);
+    try {
+      const res = await restoreLoja(lojaToRestore.id);
+      if (res.ok) {
+        toast.success(res.message || `Loja "${lojaToRestore.nome}" restaurada com sucesso!`);
+        setLojaToRestore(null);
+        refetch();
+      } else {
+        toast.error(res.message || "Erro ao restaurar loja.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro de conexão ao restaurar loja.");
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   const handleCopiarLinkLojista = (loja: Loja) => {
@@ -133,7 +204,36 @@ export default function LojasPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {isRootUser && (
+              <div className="flex items-center gap-1 p-1 bg-card border border-border rounded-xl shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleted(false)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                    !showDeleted
+                      ? "bg-primary text-primary-foreground shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Ativas ({lojasAtivas})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleted(true)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                    showDeleted
+                      ? "bg-destructive text-destructive-foreground shadow-2xs"
+                      : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Excluídas ({lojasExcluidas})</span>
+                </button>
+              </div>
+            )}
+
             <button
               onClick={() => refetch()}
               disabled={isRefetching}
@@ -143,7 +243,7 @@ export default function LojasPage() {
               <RefreshCw className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
             </button>
 
-            {isAdmin && (
+            {isAdmin && !showDeleted && (
               <button
                 onClick={handleNovaLoja}
                 className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold flex items-center gap-2 shadow-sm transition-all"
@@ -387,43 +487,74 @@ export default function LojasPage() {
                         </td>
 
                         <td className="py-3 px-4 text-center">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                              loja.ativo
-                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                : "bg-muted text-muted-foreground border-border"
-                            }`}
-                          >
-                            {loja.ativo ? "Ativa" : "Inativa"}
-                          </span>
+                          {loja.deleted_at ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-destructive/10 text-destructive border-destructive/20">
+                              Excluída
+                            </span>
+                          ) : (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                loja.ativo
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                  : "bg-muted text-muted-foreground border-border"
+                              }`}
+                            >
+                              {loja.ativo ? "Ativa" : "Inativa"}
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-3 px-4 text-right">
                           <div className="inline-flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleConectarWhatsApp(loja)}
-                              className="py-1.5 px-2.5 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
-                              title="Gerenciar conexão do WhatsApp"
-                            >
-                              <QrCode className="w-3.5 h-3.5" />
-                              <span className="hidden lg:inline">WhatsApp</span>
-                            </button>
+                            {loja.deleted_at ? (
+                              isRootUser && (
+                                <button
+                                  onClick={() => handleRestoreLoja(loja)}
+                                  className="py-1.5 px-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                                  title="Restaurar esta loja no painel"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  <span>Restaurar</span>
+                                </button>
+                              )
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleConectarWhatsApp(loja)}
+                                  className="py-1.5 px-2.5 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
+                                  title="Gerenciar conexão do WhatsApp"
+                                >
+                                  <QrCode className="w-3.5 h-3.5" />
+                                  <span className="hidden lg:inline">WhatsApp</span>
+                                </button>
 
-                            <button
-                              onClick={() => handleCopiarLinkLojista(loja)}
-                              className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-colors"
-                              title="Copiar link público para o lojista conectar WhatsApp"
-                            >
-                              <Share2 className="w-3.5 h-3.5" />
-                            </button>
+                                <button
+                                  onClick={() => handleCopiarLinkLojista(loja)}
+                                  className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-colors"
+                                  title="Copiar link público para o lojista conectar WhatsApp"
+                                >
+                                  <Share2 className="w-3.5 h-3.5" />
+                                </button>
 
-                            <button
-                              onClick={() => handleEditarLoja(loja)}
-                              className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                              title="Editar Loja"
-                            >
-                              <Settings className="w-3.5 h-3.5" />
-                            </button>
+                                <button
+                                  onClick={() => handleEditarLoja(loja)}
+                                  className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                  title="Editar Loja"
+                                >
+                                  <Settings className="w-3.5 h-3.5" />
+                                </button>
+
+                                {isAdmin && (
+                                  <button
+                                    onClick={() => handleDeleteLoja(loja)}
+                                    className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
+                                    title="Excluir Loja (Ocultar do Painel e Desconectar)"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -470,15 +601,21 @@ export default function LojasPage() {
                         </div>
                       </div>
 
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 ${
-                          loja.ativo
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                            : "bg-muted text-muted-foreground border-border"
-                        }`}
-                      >
-                        {loja.ativo ? "Ativa" : "Inativa"}
-                      </span>
+                      {loja.deleted_at ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 bg-destructive/10 text-destructive border-destructive/20">
+                          Excluída
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 ${
+                            loja.ativo
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                              : "bg-muted text-muted-foreground border-border"
+                          }`}
+                        >
+                          {loja.ativo ? "Ativa" : "Inativa"}
+                        </span>
+                      )}
                     </div>
 
                     {/* Store Info Pills */}
@@ -546,30 +683,55 @@ export default function LojasPage() {
 
                   {/* Card Bottom / Action Buttons */}
                   <div className="pt-4 mt-4 border-t border-border flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => handleConectarWhatsApp(loja)}
-                      className="flex-1 py-1.5 px-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
-                      title="Gerenciar conexão da Evolution API"
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      Instância WhatsApp
-                    </button>
+                    {loja.deleted_at ? (
+                      isRootUser && (
+                        <button
+                          onClick={() => handleRestoreLoja(loja)}
+                          className="w-full py-1.5 px-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                          title="Restaurar esta loja no painel"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Restaurar Loja
+                        </button>
+                      )
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleConectarWhatsApp(loja)}
+                          className="flex-1 py-1.5 px-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                          title="Gerenciar conexão da Evolution API"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          Instância WhatsApp
+                        </button>
 
-                    <button
-                      onClick={() => handleCopiarLinkLojista(loja)}
-                      className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-colors"
-                      title="Copiar link público para o lojista conectar WhatsApp"
-                    >
-                      <Share2 className="w-4 h-4" />
-                    </button>
+                        <button
+                          onClick={() => handleCopiarLinkLojista(loja)}
+                          className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-colors"
+                          title="Copiar link público para o lojista conectar WhatsApp"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
 
-                    <button
-                      onClick={() => handleEditarLoja(loja)}
-                      className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      title="Editar Loja"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </button>
+                        <button
+                          onClick={() => handleEditarLoja(loja)}
+                          className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          title="Editar Loja"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
+
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteLoja(loja)}
+                            className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
+                            title="Excluir Loja (Ocultar do Painel e Desconectar)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               );
@@ -577,6 +739,108 @@ export default function LojasPage() {
           </div>
         )}
       </main>
+
+      {/* Modal Confirmação de Exclusão */}
+      {lojaToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-foreground font-display">
+                  Excluir Loja "{lojaToDelete.nome}"?
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Esta ação fará a <strong className="text-foreground">exclusão lógica</strong> da loja. Todos os leads, conversas, métricas e criativos vinculados a ela serão <strong className="text-foreground">imediatamente ocultados</strong> de todos os painéis e relatórios.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-destructive/5 border border-destructive/20 text-xs text-destructive space-y-1.5">
+              <div className="font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Desconexão da Evolution API
+              </div>
+              <p className="text-[11px] text-destructive/80 leading-normal">
+                A instância correspondente no WhatsApp será desconectada e removida da Evolution API para evitar novas mensagens.
+              </p>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground italic">
+              * Nota: Apenas o usuário raiz (ID 1) possui permissão para restaurar esta loja após a exclusão.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setLojaToDelete(null)}
+                className="px-4 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-bold inline-flex items-center gap-2 shadow-sm transition-all"
+              >
+                {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {isDeleting ? "Excluindo..." : "Sim, Excluir Loja"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmação de Restauração (Apenas Root User 1) */}
+      {lojaToRestore && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-foreground font-display">
+                  Restaurar Loja "{lojaToRestore.nome}"?
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  A loja será reativada no painel, e todos os leads, mensagens e relatórios associados a ela voltarão a ser visíveis normalmente.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-600 dark:text-emerald-400 space-y-1">
+              <p className="text-[11px] leading-normal">
+                Após restaurar, será necessário reconectar a instância do WhatsApp caso deseje retomar o monitoramento de mensagens.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <button
+                type="button"
+                disabled={isRestoring}
+                onClick={() => setLojaToRestore(null)}
+                className="px-4 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isRestoring}
+                onClick={handleConfirmRestore}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-2 shadow-sm transition-all"
+              >
+                {isRestoring && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {isRestoring ? "Restaurando..." : "Sim, Restaurar Loja"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loja Edit / Create Modal */}
       <LojaModal

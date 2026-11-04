@@ -38,6 +38,7 @@ export default function PublicConnect() {
   const [data, setData] = useState<PublicConnectResult | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrCodeError, setQrCodeError] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
   const [activeOsTab, setActiveOsTab] = useState<"android" | "iphone">("android");
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -69,7 +70,7 @@ export default function PublicConnect() {
 
   // Função para consultar status ou solicitar conexão
   const fetchStatus = async (
-    action: "STATUS" | "CONNECT" | "RESTART" = "STATUS",
+    action: "STATUS" | "CONNECT" | "RESTART" | "RESET" = "STATUS",
     silent = false,
     isInitialOrManual = false
   ) => {
@@ -146,6 +147,24 @@ export default function PublicConnect() {
     setQrCodeError(null);
     fetchStatus("RESTART", false, true);
     startPolling();
+  };
+
+  const handleHardReset = async () => {
+    stopPolling();
+    setIsResetting(true);
+    setQrCode(null);
+    setQrCodeError("Resetando sessão corrompida e gerando nova conexão limpa...");
+    toast.loading("Purgando instância e recriando sessão...", { id: "pub-reset" });
+
+    try {
+      await fetchStatus("RESET", false, true);
+      toast.success("Sessão recriada com sucesso! Escaneie o novo QR Code.", { id: "pub-reset" });
+      startPolling();
+    } catch {
+      toast.error("Erro ao resetar instância. Tente novamente.", { id: "pub-reset" });
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
@@ -298,16 +317,35 @@ export default function PublicConnect() {
                 <span>Aguardando leitura do aparelho...</span>
               </div>
 
-              <div className="pt-1 flex items-center justify-center gap-3">
+              <div className="pt-1 flex flex-col sm:flex-row items-center justify-center gap-2.5">
                 <button
                   type="button"
                   onClick={handleManualRefresh}
-                  disabled={isRefreshing}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
+                  disabled={isRefreshing || isResetting}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
                   Recarregar QR Code
                 </button>
+
+                <button
+                  type="button"
+                  onClick={handleHardReset}
+                  disabled={isRefreshing || isResetting}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 disabled:opacity-50 text-amber-300 text-xs font-semibold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+                  title="Purga sessões corrompidas e gera uma nova conexão limpa"
+                >
+                  <Zap className={`w-3.5 h-3.5 text-amber-400 ${isResetting ? "animate-spin" : ""}`} />
+                  {isResetting ? "Recriando sessão..." : "Resetar Sessão e Novo QR Code"}
+                </button>
+              </div>
+
+              {/* Dica de auto-recuperação */}
+              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2 text-left">
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>A câmera do celular dá erro ou não conecta?</strong> Clique em <em>"Resetar Sessão e Novo QR Code"</em> para limpar os arquivos travados na operadora e iniciar uma conexão zero bala.
+                </span>
               </div>
             </div>
 

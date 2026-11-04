@@ -84,6 +84,8 @@ Representa as lojas monitoradas pela plataforma.
 * `nome` (VARCHAR)
 * `whatsapp_loja` (VARCHAR - número principal/instância)
 * `ativo` (BOOLEAN, default true)
+* `deleted_at` (TIMESTAMPTZ, default null — Soft Delete: quando preenchido, a loja e seus leads/mensagens/métricas são ocultados do painel)
+* `connect_token` (UUID, token público para o lojista conectar o WhatsApp sem acessar o painel)
 * `config_json` (JSONB)
   - `evolutionapi`:
     - `instanceName`: Nome da instância na Evolution API
@@ -93,6 +95,11 @@ Representa as lojas monitoradas pela plataforma.
   - `notificacoes`: Alertas de desconexão ou volume
 * `created_at` (TIMESTAMPTZ)
 * `updated_at` (TIMESTAMPTZ)
+
+> **Regras de Exclusão e Restauração de Lojas:**
+> - **Soft Delete:** A ação `DELETE-LOJA` marca `deleted_at = NOW()` e `ativo = false`, e desconecta/deleta a instância na Evolution API.
+> - **Isolamento Completo:** Lojas com `deleted_at IS NOT NULL` são omitidas de todos os seletores, listagens de contatos, resumos de SLA e criativos.
+> - **Restauração Exclusiva Root (ID 1):** Apenas o usuário com `id = 1` possui permissão para visualizar lojas na lixeira e disparar a ação `RESTORE-LOJA`.
 
 ### C. Tabela `pessoas` (Mestre de Contatos / Leads)
 Centraliza cada pessoa que entrou em contato no WhatsApp de uma loja.

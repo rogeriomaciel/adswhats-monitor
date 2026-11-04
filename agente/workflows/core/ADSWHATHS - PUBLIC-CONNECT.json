@@ -84,7 +84,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  l.connect_token,\n  l.config_json,\n  (SELECT value FROM public.configs WHERE key = 'evolution_api_url' LIMIT 1) AS config_evo_url,\n  (SELECT value FROM public.configs WHERE key = 'evolution_api_key' LIMIT 1) AS config_evo_key\nFROM public.lojas l\nWHERE l.connect_token = $1::uuid AND l.ativo = true\nLIMIT 1;\n",
+        "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  l.connect_token,\n  l.config_json,\n  (SELECT value FROM public.configs WHERE key = 'evolution_api_url' LIMIT 1) AS config_evo_url,\n  (SELECT value FROM public.configs WHERE key = 'evolution_api_key' LIMIT 1) AS config_evo_key,\n  (SELECT value FROM public.configs WHERE key = 'evolution_webhook_url' LIMIT 1) AS config_evo_webhook,\n  (SELECT value FROM public.configs WHERE key = 'webhook_secret' LIMIT 1) AS config_evo_secret\nFROM public.lojas l\nWHERE l.connect_token = $1::uuid AND l.ativo = true AND l.deleted_at IS NULL\nLIMIT 1;\n",
         "options": {
           "queryReplacement": "={{ [$json.token] }}"
         }
@@ -107,7 +107,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst rawLoja = items.length > 0 ? items[0].json : null;\nconst req = $('Validar Parametros Iniciais').first().json || {};\n\nif (!rawLoja || !rawLoja.id) {\n  return {\n    json: {\n      found: false,\n      error: 'Link de conexão inválido, expirado ou loja desativada.'\n    }\n  };\n}\n\nconst evoConfig = rawLoja.config_json?.evolutionapi || {};\nconst defaultEvolutionKey = (rawLoja.config_evo_key || '').trim();\nconst defaultEvolutionUrl = (rawLoja.config_evo_url || '').replace(/\\/+$/, '');\n\nlet instanceName = (evoConfig.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = `loja-${rawLoja.id}`;\n}\n\nconst apikey = (evoConfig.apikey || '').trim() || defaultEvolutionKey;\nlet apiUrl = (evoConfig.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nif (!apiUrl || !apikey) {\n  return {\n    json: {\n      found: false,\n      error: 'Serviço de conexão WhatsApp não configurado para esta loja.'\n    }\n  };\n}\n\nconst action = (req.action || 'CONNECT').toUpperCase();\nlet url = '';\nlet method = 'GET';\n\nif (action === 'STATUS') {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n} else if (action === 'RESTART') {\n  url = `${apiUrl}/instance/restart/${instanceName}`;\n  method = 'POST';\n} else {\n  url = `${apiUrl}/instance/connect/${instanceName}`;\n}\n\nreturn {\n  json: {\n    found: true,\n    loja_id: rawLoja.id,\n    loja_nome: rawLoja.nome,\n    whatsapp_loja: rawLoja.whatsapp_loja,\n    instanceName,\n    apiUrl,\n    apikey,\n    action,\n    method,\n    url\n  }\n};"
+        "jsCode": "const items = $input.all();\nconst rawLoja = items.length > 0 ? items[0].json : null;\nconst req = $('Validar Parametros Iniciais').first().json || {};\n\nif (!rawLoja || !rawLoja.id) {\n  return {\n    json: {\n      found: false,\n      error: 'Link de conexão inválido, expirado ou loja desativada.'\n    }\n  };\n}\n\nconst evoConfig = rawLoja.config_json?.evolutionapi || {};\nconst defaultEvolutionKey = (rawLoja.config_evo_key || '').trim();\nconst defaultEvolutionUrl = (rawLoja.config_evo_url || '').replace(/\\/+$/, '');\n\nlet instanceName = (evoConfig.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = `loja-${rawLoja.id}`;\n}\n\nconst apikey = (evoConfig.apikey || '').trim() || defaultEvolutionKey;\nlet apiUrl = (evoConfig.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nif (!apiUrl || !apikey) {\n  return {\n    json: {\n      found: false,\n      error: 'Serviço de conexão WhatsApp não configurado para esta loja.'\n    }\n  };\n}\n\nlet webhookUrl = (evoConfig.webhookUrl || rawLoja.config_evo_webhook || '').trim();\nif (webhookUrl && !webhookUrl.includes('/app/')) {\n  webhookUrl = webhookUrl.replace('/adswhatsinbound', '/app/adswhatsinbound');\n}\n\nconst rawToken = (evoConfig.token || '').trim();\nconst instanceToken = rawToken || ('TOKEN-' + rawLoja.id);\nconst webhookSecret = (rawLoja.config_evo_secret || instanceToken || apikey || '').trim();\n\nconst createPayload = {\n  instanceName,\n  qrcode: true,\n  integration: 'WHATSAPP-BAILEYS',\n  token: instanceToken,\n  webhook: {\n    enabled: Boolean(webhookUrl),\n    url: webhookUrl,\n    headers: {\n      'x-webhook-secret': webhookSecret\n    },\n    byEvents: false,\n    base64: false,\n    events: [\n      'MESSAGES_UPSERT',\n      'CONNECTION_UPDATE'\n    ]\n  }\n};\n\nconst action = (req.action || 'CONNECT').toUpperCase();\nconst isReset = action === 'RESET';\n\nlet url = '';\nlet method = 'GET';\n\nif (action === 'STATUS') {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n} else if (action === 'RESTART') {\n  url = `${apiUrl}/instance/restart/${instanceName}`;\n  method = 'POST';\n} else {\n  url = `${apiUrl}/instance/connect/${instanceName}`;\n}\n\nreturn {\n  json: {\n    found: true,\n    loja_id: rawLoja.id,\n    loja_nome: rawLoja.nome,\n    whatsapp_loja: rawLoja.whatsapp_loja,\n    instanceName,\n    apiUrl,\n    apikey,\n    action,\n    isReset,\n    method,\n    url,\n    logoutUrl: `${apiUrl}/instance/logout/${instanceName}`,\n    deleteUrl: `${apiUrl}/instance/delete/${instanceName}`,\n    createUrl: `${apiUrl}/instance/create`,\n    connectUrl: `${apiUrl}/instance/connect/${instanceName}`,\n    createPayload\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -169,6 +169,133 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isReset }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -40
+      ],
+      "id": "pub-conn-if-reset",
+      "name": "É Reset de Sessao?"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $json.logoutUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        -160
+      ],
+      "id": "pub-conn-reset-logout",
+      "name": "Reset 1 Logout Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $('Verificar e Preparar Requisicao Evolution').first().json.deleteUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Verificar e Preparar Requisicao Evolution').first().json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        -160
+      ],
+      "id": "pub-conn-reset-delete",
+      "name": "Reset 2 Delete Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Verificar e Preparar Requisicao Evolution').first().json.createUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Verificar e Preparar Requisicao Evolution').first().json.apikey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Verificar e Preparar Requisicao Evolution').first().json.createPayload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        -160
+      ],
+      "id": "pub-conn-reset-create",
+      "name": "Reset 3 Create Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Verificar e Preparar Requisicao Evolution').first().json.connectUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Verificar e Preparar Requisicao Evolution').first().json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        -160
+      ],
+      "id": "pub-conn-reset-connect",
+      "name": "Reset 4 Connect Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "method": "={{ $json.method }}",
         "url": "={{ $json.url }}",
         "sendHeaders": true,
@@ -185,8 +312,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        320,
-        0
+        480,
+        40
       ],
       "id": "pub-conn-call-evo",
       "name": "Chamar Evolution",
@@ -200,7 +327,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        544,
+        1360,
         0
       ],
       "id": "pub-conn-fmt-result",
@@ -214,7 +341,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        768,
+        1580,
         0
       ],
       "id": "pub-conn-final-payload",
@@ -227,7 +354,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        992,
+        1800,
         0
       ],
       "id": "pub-conn-resp-ok",
@@ -247,7 +374,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        768,
+        1580,
         -176
       ],
       "id": "pub-conn-if-update-phone",
@@ -264,7 +391,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        992,
+        1800,
         -176
       ],
       "id": "pub-conn-update-phone-db",
@@ -367,7 +494,7 @@
       "main": [
         [
           {
-            "node": "Chamar Evolution",
+            "node": "É Reset de Sessao?",
             "type": "main",
             "index": 0
           }
@@ -386,6 +513,68 @@
         [
           {
             "node": "Responder 404 Loja Nao Encontrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Reset de Sessao?": {
+      "main": [
+        [
+          {
+            "node": "Reset 1 Logout Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chamar Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset 1 Logout Evolution": {
+      "main": [
+        [
+          {
+            "node": "Reset 2 Delete Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset 2 Delete Evolution": {
+      "main": [
+        [
+          {
+            "node": "Reset 3 Create Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset 3 Create Evolution": {
+      "main": [
+        [
+          {
+            "node": "Reset 4 Connect Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset 4 Connect Evolution": {
+      "main": [
+        [
+          {
+            "node": "Formatar Resultado Seguro",
             "type": "main",
             "index": 0
           }

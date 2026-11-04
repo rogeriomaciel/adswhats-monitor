@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS lojas (
     nome VARCHAR(255) NOT NULL,
     whatsapp_loja VARCHAR(50) NOT NULL,
     ativo BOOLEAN DEFAULT TRUE,
+    deleted_at TIMESTAMPTZ DEFAULT NULL,
     config_json JSONB DEFAULT '{
         "evolutionapi": {
             "instanceName": "",
@@ -118,5 +119,6 @@ CREATE TABLE IF NOT EXISTS criativos (
 CREATE INDEX IF NOT EXISTS idx_criativos_loja_id ON criativos(loja_id);
 CREATE INDEX IF NOT EXISTS idx_criativos_ad_id ON criativos(ad_id);
 CREATE INDEX IF NOT EXISTS idx_criativos_canal ON criativos(canal);
+CREATE INDEX IF NOT EXISTS idx_lojas_deleted_at ON lojas(deleted_at);
 
 

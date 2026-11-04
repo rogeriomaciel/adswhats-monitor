@@ -38,6 +38,7 @@ export interface Loja {
   whatsapp_loja: string;
   connect_token?: string;
   ativo: boolean;
+  deleted_at?: string | null;
   config_json?: LojaConfig;
   total_contatos?: number;
   total_mensagens?: number;

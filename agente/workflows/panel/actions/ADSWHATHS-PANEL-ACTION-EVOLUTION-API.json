@@ -15,7 +15,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, nome, whatsapp_loja, config_json FROM lojas WHERE id = $1 LIMIT 1;",
+        "query": "SELECT \n  id, \n  nome, \n  whatsapp_loja, \n  config_json,\n  (SELECT value FROM public.configs WHERE key = 'evolution_webhook_url' LIMIT 1) AS config_evo_webhook,\n  (SELECT value FROM public.configs WHERE key = 'webhook_secret' LIMIT 1) AS config_evo_secret\nFROM lojas \nWHERE id = $1 \nLIMIT 1;\n",
         "options": {
           "queryReplacement": "={{ [$json.body.loja_id] }}"
         }
@@ -38,7 +38,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const startItem = $('Start').first().json || {};\nconst triggerData = startItem.body || startItem.payload || startItem || {};\nconst configs = startItem.configs || triggerData.configs || {};\nconst loja = $input.item.json || {};\nconst evoConfig = loja.config_json?.evolutionapi || {};\n\nconst defaultEvolutionKey = (configs.evolution_api_key || '').trim();\nconst defaultEvolutionUrl = (configs.evolution_api_url || '').replace(/\\/+$/, '');\n\nlet instanceName = (evoConfig.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = `loja-${loja.id}`;\n}\n\nconst apikey = (evoConfig.apikey || '').trim() || defaultEvolutionKey;\nlet apiUrl = (evoConfig.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nconst evolutionAction = (triggerData.evolutionAction || 'STATUS').toUpperCase();\n\nif (!apiUrl || !instanceName || !apikey) {\n  return {\n    json: {\n      hasError: true,\n      error: 'Instância, chave ou URL da Evolution API não configurada na loja ou na tabela configs.'\n    }\n  };\n}\n\nlet url = '';\nlet method = 'GET';\n\nif (evolutionAction === 'STATUS') {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n} else if (evolutionAction === 'CONNECT') {\n  url = `${apiUrl}/instance/connect/${instanceName}`;\n} else if (evolutionAction === 'LOGOUT') {\n  url = `${apiUrl}/instance/logout/${instanceName}`;\n  method = 'DELETE';\n} else if (evolutionAction === 'RESTART') {\n  url = `${apiUrl}/instance/restart/${instanceName}`;\n  method = 'POST';\n} else {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n}\n\nreturn {\n  json: {\n    hasError: false,\n    evolutionAction,\n    url,\n    method,\n    apikey,\n    instanceName,\n    loja_id: loja.id\n  }\n};"
+        "jsCode": "const startItem = $('Start').first().json || {};\nconst triggerData = startItem.body || startItem.payload || startItem || {};\nconst configs = startItem.configs || triggerData.configs || {};\nconst loja = $input.item.json || {};\nconst evoConfig = loja.config_json?.evolutionapi || {};\n\nconst defaultEvolutionKey = (configs.evolution_api_key || '').trim();\nconst defaultEvolutionUrl = (configs.evolution_api_url || '').replace(/\\/+$/, '');\n\nlet instanceName = (evoConfig.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = `loja-${loja.id}`;\n}\n\nconst apikey = (evoConfig.apikey || '').trim() || defaultEvolutionKey;\nlet apiUrl = (evoConfig.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nconst evolutionAction = (triggerData.evolutionAction || 'STATUS').toUpperCase();\nconst isReset = evolutionAction === 'RESET';\n\nif (!apiUrl || !instanceName || !apikey) {\n  return {\n    json: {\n      hasError: true,\n      error: 'Instância, chave ou URL da Evolution API não configurada na loja ou na tabela configs.'\n    }\n  };\n}\n\nlet webhookUrl = (evoConfig.webhookUrl || configs.evolution_webhook_url || loja.config_evo_webhook || '').trim();\nif (webhookUrl && !webhookUrl.includes('/app/')) {\n  webhookUrl = webhookUrl.replace('/adswhatsinbound', '/app/adswhatsinbound');\n}\n\nconst rawToken = (evoConfig.token || '').trim();\nconst instanceToken = rawToken || ('TOKEN-' + loja.id);\nconst webhookSecret = (configs.webhook_secret || loja.config_evo_secret || instanceToken || apikey || '').trim();\n\nconst createPayload = {\n  instanceName,\n  qrcode: true,\n  integration: 'WHATSAPP-BAILEYS',\n  token: instanceToken,\n  webhook: {\n    enabled: Boolean(webhookUrl),\n    url: webhookUrl,\n    headers: {\n      'x-webhook-secret': webhookSecret\n    },\n    byEvents: false,\n    base64: false,\n    events: [\n      'MESSAGES_UPSERT',\n      'CONNECTION_UPDATE'\n    ]\n  }\n};\n\nlet url = '';\nlet method = 'GET';\n\nif (evolutionAction === 'STATUS') {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n} else if (evolutionAction === 'CONNECT') {\n  url = `${apiUrl}/instance/connect/${instanceName}`;\n} else if (evolutionAction === 'LOGOUT') {\n  url = `${apiUrl}/instance/logout/${instanceName}`;\n  method = 'DELETE';\n} else if (evolutionAction === 'RESTART') {\n  url = `${apiUrl}/instance/restart/${instanceName}`;\n  method = 'POST';\n} else {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n}\n\nreturn {\n  json: {\n    hasError: false,\n    evolutionAction,\n    isReset,\n    url,\n    method,\n    apikey,\n    instanceName,\n    loja_id: loja.id,\n    logoutUrl: `${apiUrl}/instance/logout/${instanceName}`,\n    deleteUrl: `${apiUrl}/instance/delete/${instanceName}`,\n    createUrl: `${apiUrl}/instance/create`,\n    connectUrl: `${apiUrl}/instance/connect/${instanceName}`,\n    createPayload\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -78,10 +78,137 @@
       "typeVersion": 2,
       "position": [
         180,
-        -100
+        -160
       ],
       "id": "evo-resp-config-error",
       "name": "Retornar Erro Config"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isReset }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ],
+      "id": "evo-if-reset",
+      "name": "É Reset de Sessao?"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $json.logoutUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        -60
+      ],
+      "id": "evo-reset-logout",
+      "name": "Reset 1 Logout Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $('Preparar Requisicao').first().json.deleteUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Preparar Requisicao').first().json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        620,
+        -60
+      ],
+      "id": "evo-reset-delete",
+      "name": "Reset 2 Delete Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Preparar Requisicao').first().json.createUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Preparar Requisicao').first().json.apikey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Preparar Requisicao').first().json.createPayload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        -60
+      ],
+      "id": "evo-reset-create",
+      "name": "Reset 3 Create Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Preparar Requisicao').first().json.connectUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Preparar Requisicao').first().json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1060,
+        -60
+      ],
+      "id": "evo-reset-connect",
+      "name": "Reset 4 Connect Evolution",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -101,8 +228,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        180,
-        100
+        400,
+        140
       ],
       "id": "evo-http-req",
       "name": "Chamar Evolution API",
@@ -116,8 +243,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        400,
-        100
+        1280,
+        40
       ],
       "id": "evo-resp-success",
       "name": "Formatar Resposta"
@@ -136,8 +263,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        620,
-        100
+        1500,
+        40
       ],
       "id": "evo-if-update-phone",
       "name": "Atualizar Telefone Loja?"
@@ -153,8 +280,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        840,
-        40
+        1720,
+        -20
       ],
       "id": "evo-update-phone-db",
       "name": "Atualizar Telefone no Banco",
@@ -174,8 +301,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1060,
-        100
+        1940,
+        40
       ],
       "id": "evo-final-resp",
       "name": "Retorno Final"
@@ -226,7 +353,69 @@
         ],
         [
           {
+            "node": "É Reset de Sessao?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Reset de Sessao?": {
+      "main": [
+        [
+          {
+            "node": "Reset 1 Logout Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Chamar Evolution API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset 1 Logout Evolution": {
+      "main": [
+        [
+          {
+            "node": "Reset 2 Delete Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset 2 Delete Evolution": {
+      "main": [
+        [
+          {
+            "node": "Reset 3 Create Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset 3 Create Evolution": {
+      "main": [
+        [
+          {
+            "node": "Reset 4 Connect Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset 4 Connect Evolution": {
+      "main": [
+        [
+          {
+            "node": "Formatar Resposta",
             "type": "main",
             "index": 0
           }

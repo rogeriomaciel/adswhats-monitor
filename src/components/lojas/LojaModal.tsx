@@ -24,6 +24,7 @@ import {
   Clock,
   ExternalLink,
   Sparkles,
+  Zap,
 } from "lucide-react";
 
 interface LojaModalProps {
@@ -292,6 +293,36 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
       setTimeout(() => checkStatus(loja.id), 2500);
     } else {
       toast.error(res.message || "Erro ao reiniciar instância.");
+    }
+  };
+
+  const handleHardResetInstance = async () => {
+    if (!loja?.id) return;
+    if (!confirm(`Deseja purgar e recriar a instância de "${loja.nome}" do zero? Isso limpará arquivos de sessão corrompidos na Evolution API e gerará um novo QR Code.`)) return;
+
+    stopPolling();
+    setIsEvoLoading(true);
+    setEvoQrCode(null);
+    toast.loading("Purgando arquivos corrompidos e recriando instância...", { id: "hard-reset-evo" });
+
+    try {
+      const res = await callEvolutionApi(loja.id, "RESET");
+      if (res.ok) {
+        toast.success("Instância purgada e recriada com sucesso! Escaneie o novo QR Code.", { id: "hard-reset-evo" });
+        if (res.base64) {
+          setEvoQrCode(res.base64);
+          setEvoStatus("connecting");
+          startQrPolling(loja.id);
+        } else {
+          setTimeout(() => handleConnectQrCode(false), 1500);
+        }
+      } else {
+        toast.error(res.message || "Erro ao resetar instância na Evolution API.", { id: "hard-reset-evo" });
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro de conexão ao resetar instância.", { id: "hard-reset-evo" });
+    } finally {
+      setIsEvoLoading(false);
     }
   };
 
@@ -875,6 +906,17 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
                     >
                       <Power className="w-3.5 h-3.5" />
                       Reiniciar Instância
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleHardResetInstance}
+                      disabled={isEvoLoading}
+                      className="px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+                      title="Purga a sessão corrompida na Evolution API e recria a instância do zero"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      Resetar Instância (Hard Reset)
                     </button>
                   </div>
 

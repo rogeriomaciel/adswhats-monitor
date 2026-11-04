@@ -1,0 +1,158 @@
+{
+  "name": "ADSWHATHS-PANEL-ACTION-RESTORE-LOJA",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -600,
+        0
+      ],
+      "id": "rest-loja-start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const triggerData = $input.item.json || {};\nconst body = triggerData.body || triggerData.payload || triggerData || {};\nconst authUser = triggerData.user || {};\nconst userId = Number(authUser.user_id || authUser.id);\n\nif (userId !== 1) {\n  return {\n    json: {\n      valid: false,\n      errorMessage: 'Acesso negado: apenas o usuário raiz (ID 1) tem permissão para restaurar lojas excluídas.'\n    }\n  };\n}\n\nconst lojaId = Number(body.loja_id || body.id);\nif (!lojaId) {\n  return {\n    json: {\n      valid: false,\n      errorMessage: 'ID da loja não informado.'\n    }\n  };\n}\n\nreturn {\n  json: {\n    valid: true,\n    lojaId\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        0
+      ],
+      "id": "rest-loja-prep-auth",
+      "name": "Validar Usuario 1 e Parametros"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.valid }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        0
+      ],
+      "id": "rest-loja-if-valid",
+      "name": "É Válido e Autorizado?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  json: {\n    ok: false,\n    message: $input.item.json.errorMessage || 'Operação não permitida.'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        180
+      ],
+      "id": "rest-loja-err-valid",
+      "name": "Retornar Erro Validação"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.lojas\nSET \n  deleted_at = NULL,\n  ativo = true,\n  updated_at = NOW()\nWHERE id = $1\nRETURNING id, nome, deleted_at, ativo;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.lojaId] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        60,
+        -60
+      ],
+      "id": "rest-loja-db",
+      "name": "Restaurar Loja no Banco",
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const restored = $input.item.json || {};\nreturn {\n  json: {\n    ok: true,\n    message: `Loja \"${restored.nome || restored.id}\" restaurada com sucesso!`,\n    loja: restored\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        -60
+      ],
+      "id": "rest-loja-resp-success",
+      "name": "Formatar Retorno Sucesso"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Validar Usuario 1 e Parametros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Usuario 1 e Parametros": {
+      "main": [
+        [
+          {
+            "node": "É Válido e Autorizado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Válido e Autorizado?": {
+      "main": [
+        [
+          {
+            "node": "Restaurar Loja no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retornar Erro Validação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restaurar Loja no Banco": {
+      "main": [
+        [
+          {
+            "node": "Formatar Retorno Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+
