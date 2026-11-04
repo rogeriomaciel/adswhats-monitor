@@ -179,6 +179,43 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
     }
   };
 
+  const stopPolling = () => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  };
+
+  const startQrPolling = (targetLojaId: number) => {
+    stopPolling();
+    let attempts = 0;
+    const maxAttempts = 18;
+    pollTimerRef.current = window.setInterval(async () => {
+      if (document.hidden) return;
+      attempts += 1;
+      if (attempts > maxAttempts) {
+        stopPolling();
+        setEvoQrCode(null);
+        setEvoStatus("close");
+        toast.info("Tempo de leitura do QR Code expirou. Clique em Conectar WhatsApp para gerar um novo.");
+        return;
+      }
+
+      const pollRes = await callEvolutionApi(targetLojaId, "STATUS");
+      if (pollRes.ok && pollRes.state === "open") {
+        setEvoStatus("open");
+        setEvoQrCode(null);
+        if (pollRes.number) {
+          setEvoOwnerNumber(pollRes.number);
+          setWhatsappLoja(pollRes.number);
+        }
+        stopPolling();
+        toast.success("WhatsApp conectado com sucesso!");
+        onSaved();
+      }
+    }, 3500);
+  };
+
   const handleConnectQrCode = async (forceRestart = false) => {
     if (!loja?.id) {
       toast.error("Salve a loja primeiro antes de conectar o WhatsApp.");
@@ -212,35 +249,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
         toast.info(forceRestart ? "Novo QR Code gerado! Aponte o WhatsApp." : "Aponte o WhatsApp no seu celular para o QR Code.");
 
         // Polling limitado a 18 tentativas (~60s) e pausado se a aba do navegador estiver oculta
-        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-        let attempts = 0;
-        const maxAttempts = 18;
-        pollTimerRef.current = window.setInterval(async () => {
-          if (document.hidden) return;
-          attempts += 1;
-          if (attempts > maxAttempts) {
-            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
-            setEvoQrCode(null);
-            setEvoStatus("close");
-            toast.info("Tempo de leitura do QR Code expirou. Clique em Conectar WhatsApp para gerar um novo.");
-            return;
-          }
-
-          const pollRes = await callEvolutionApi(loja.id, "STATUS");
-          if (pollRes.ok && pollRes.state === "open") {
-            setEvoStatus("open");
-            setEvoQrCode(null);
-            if (pollRes.number) {
-              setEvoOwnerNumber(pollRes.number);
-              setWhatsappLoja(pollRes.number);
-            }
-            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
-            toast.success("WhatsApp conectado com sucesso!");
-            onSaved();
-          }
-        }, 3500);
+        startQrPolling(loja.id);
       } else if (res.state === "open") {
         setEvoStatus("open");
         setEvoQrCode(null);

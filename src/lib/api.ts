@@ -55,9 +55,13 @@ export async function callPanelAction<T = any>(action: string, payload: Record<s
 }
 
 /** Buscar todas as lojas */
-export async function getLojas(includeDeleted?: boolean): Promise<Loja[]> {
+export async function getLojas(options?: boolean | { includeDeleted?: boolean } | unknown): Promise<Loja[]> {
+  const includeDeleted =
+    typeof options === "boolean"
+      ? options
+      : Boolean((options as { includeDeleted?: boolean } | undefined)?.includeDeleted);
   const res = await callPanelAction<{ ok: boolean; lojas?: Loja[] }>("GET-LOJAS", {
-    include_deleted: Boolean(includeDeleted),
+    include_deleted: includeDeleted,
   });
   return res.lojas || [];
 }

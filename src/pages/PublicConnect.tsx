@@ -41,7 +41,7 @@ export default function PublicConnect() {
   const [isResetting, setIsResetting] = useState(false);
   const [activeOsTab, setActiveOsTab] = useState<"android" | "iphone">("android");
 
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<number | null>(null);
   const pollAttemptsRef = useRef<number>(0);
   const MAX_POLL_ATTEMPTS = 20; // ~80 segundos de leitura antes de pausar
 
@@ -55,7 +55,7 @@ export default function PublicConnect() {
   const startPolling = () => {
     stopPolling();
     pollAttemptsRef.current = 0;
-    pollIntervalRef.current = setInterval(() => {
+    pollIntervalRef.current = window.setInterval(() => {
       if (document.hidden) return;
       pollAttemptsRef.current += 1;
       if (pollAttemptsRef.current > MAX_POLL_ATTEMPTS) {
