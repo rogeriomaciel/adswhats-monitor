@@ -55,9 +55,25 @@ export async function callPanelAction<T = any>(action: string, payload: Record<s
 }
 
 /** Buscar todas as lojas */
-export async function getLojas(): Promise<Loja[]> {
-  const res = await callPanelAction<{ ok: boolean; lojas?: Loja[] }>("GET-LOJAS", {});
+export async function getLojas(options?: boolean | { includeDeleted?: boolean } | unknown): Promise<Loja[]> {
+  const includeDeleted =
+    typeof options === "boolean"
+      ? options
+      : Boolean((options as { includeDeleted?: boolean } | undefined)?.includeDeleted);
+  const res = await callPanelAction<{ ok: boolean; lojas?: Loja[] }>("GET-LOJAS", {
+    include_deleted: includeDeleted,
+  });
   return res.lojas || [];
+}
+
+/** Excluir loja logicamente (soft-delete) e desconectar/deletar Evolution API */
+export async function deleteLoja(lojaId: number): Promise<{ ok: boolean; message?: string }> {
+  return await callPanelAction("DELETE-LOJA", { loja_id: lojaId });
+}
+
+/** Restaurar loja excluída (apenas usuário raiz ID 1) */
+export async function restoreLoja(lojaId: number): Promise<{ ok: boolean; message?: string }> {
+  return await callPanelAction("RESTORE-LOJA", { loja_id: lojaId });
 }
 
 /** Salvar ou Atualizar Loja */
@@ -72,10 +88,10 @@ export async function saveLoja(lojaData: {
   return await callPanelAction("SAVE-LOJA", lojaData);
 }
 
-/** Ações da Evolution API (STATUS, CONNECT, LOGOUT, RESTART) */
+/** Ações da Evolution API (STATUS, CONNECT, LOGOUT, RESTART, RESET) */
 export async function callEvolutionApi(
   lojaId: number,
-  evolutionAction: "STATUS" | "CONNECT" | "LOGOUT" | "RESTART"
+  evolutionAction: "STATUS" | "CONNECT" | "LOGOUT" | "RESTART" | "RESET"
 ): Promise<EvolutionApiResult> {
   try {
     const res = await callPanelAction<{
@@ -199,7 +215,7 @@ export interface PublicConnectResult {
 /** Chamada pública para conectar WhatsApp da Loja via token exclusivo do Lojista */
 export async function callPublicConnect(
   token: string,
-  action: "STATUS" | "CONNECT" | "RESTART" = "CONNECT"
+  action: "STATUS" | "CONNECT" | "RESTART" | "RESET" = "CONNECT"
 ): Promise<PublicConnectResult> {
   const url = `${API_BASE}/adswhatsconnect`;
   try {

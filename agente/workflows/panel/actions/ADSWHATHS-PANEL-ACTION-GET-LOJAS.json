@@ -6,7 +6,7 @@
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1,
       "position": [
-        -400,
+        -500,
         0
       ],
       "id": "get-lojas-start",
@@ -14,13 +14,30 @@
     },
     {
       "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const triggerData = $input.item.json || {};\nconst body = triggerData.body || triggerData.payload || triggerData || {};\nconst authUser = triggerData.user || {};\nconst userId = Number(authUser.user_id || authUser.id);\nconst includeDeleted = Boolean(body.include_deleted && userId === 1);\n\nreturn {\n  json: {\n    includeDeleted\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        0
+      ],
+      "id": "get-lojas-prep",
+      "name": "Preparar Parametros"
+    },
+    {
+      "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  l.connect_token,\n  l.ativo,\n  l.config_json,\n  l.created_at,\n  l.updated_at,\n  COALESCE((SELECT COUNT(*) FROM pessoas p WHERE p.loja_id = l.id), 0)::int AS total_contatos,\n  COALESCE((SELECT COUNT(*) FROM mensagens m WHERE m.loja_id = l.id), 0)::int AS total_mensagens\nFROM lojas l\nORDER BY l.id ASC;\n"
+        "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  l.connect_token,\n  l.ativo,\n  l.deleted_at,\n  l.config_json,\n  l.created_at,\n  l.updated_at,\n  COALESCE((SELECT COUNT(*) FROM pessoas p WHERE p.loja_id = l.id), 0)::int AS total_contatos,\n  COALESCE((SELECT COUNT(*) FROM mensagens m WHERE m.loja_id = l.id), 0)::int AS total_mensagens\nFROM lojas l\nWHERE ($1::boolean = true OR l.deleted_at IS NULL)\nORDER BY l.id ASC;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.includeDeleted] }}"
+        }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        -180,
+        -60,
         0
       ],
       "id": "get-lojas-db",
@@ -41,7 +58,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        40,
+        160,
         0
       ],
       "id": "get-lojas-format",
@@ -50,6 +67,17 @@
   ],
   "connections": {
     "Start": {
+      "main": [
+        [
+          {
+            "node": "Preparar Parametros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Parametros": {
       "main": [
         [
           {

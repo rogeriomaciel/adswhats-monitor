@@ -1,0 +1,328 @@
+{
+  "name": "ADSWHATHS-PANEL-ACTION-DELETE-LOJA",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        0
+      ],
+      "id": "del-loja-start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const triggerData = $input.item.json || {};\nconst body = triggerData.body || triggerData.payload || triggerData || {};\nconst authUser = triggerData.user || {};\nconst userRole = String(authUser.role || 'admin').toLowerCase().trim();\nconst configs = triggerData.configs || body.configs || {};\n\nif (userRole !== 'admin') {\n  return {\n    json: {\n      valid: false,\n      errorMessage: 'Acesso negado: apenas administradores podem excluir lojas.'\n    }\n  };\n}\n\nconst lojaId = Number(body.loja_id || body.id);\nif (!lojaId) {\n  return {\n    json: {\n      valid: false,\n      errorMessage: 'ID da loja não informado.'\n    }\n  };\n}\n\nreturn {\n  json: {\n    valid: true,\n    lojaId,\n    configs\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        0
+      ],
+      "id": "del-loja-prep-auth",
+      "name": "Validar Admin e Parametros"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.valid }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        0
+      ],
+      "id": "del-loja-if-valid",
+      "name": "Dados Válidos?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  json: {\n    ok: false,\n    message: $input.item.json.errorMessage || 'Operação não permitida.'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -40,
+        180
+      ],
+      "id": "del-loja-err-valid",
+      "name": "Retornar Erro Validação"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, nome, config_json, ativo, deleted_at FROM public.lojas WHERE id = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.lojaId] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -40,
+        -60
+      ],
+      "id": "del-loja-fetch-db",
+      "name": "Buscar Loja no Banco",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const loja = $input.item.json || {};\nconst prep = $('Validar Admin e Parametros').first().json || {};\nconst configs = prep.configs || {};\n\nif (!loja.id) {\n  return {\n    json: {\n      found: false,\n      lojaId: prep.lojaId\n    }\n  };\n}\n\nconst evoConfig = loja.config_json?.evolutionapi || {};\nconst defaultEvolutionKey = (configs.evolution_api_key || '').trim();\nconst defaultEvolutionUrl = (configs.evolution_api_url || '').replace(/\\/+$/, '');\n\nlet instanceName = (evoConfig.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = `loja-${loja.id}`;\n}\n\nconst apikey = (evoConfig.apikey || '').trim() || defaultEvolutionKey;\nlet apiUrl = (evoConfig.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nconst canCallEvolution = Boolean(apiUrl && instanceName && apikey);\nconst logoutUrl = canCallEvolution ? `${apiUrl}/instance/logout/${instanceName}` : '';\nconst deleteUrl = canCallEvolution ? `${apiUrl}/instance/delete/${instanceName}` : '';\n\nreturn {\n  json: {\n    found: true,\n    lojaId: loja.id,\n    nome: loja.nome,\n    canCallEvolution,\n    instanceName,\n    apikey,\n    logoutUrl,\n    deleteUrl\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        -60
+      ],
+      "id": "del-loja-prep-evo",
+      "name": "Preparar Chamada Evolution"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.canCallEvolution }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -60
+      ],
+      "id": "del-loja-if-evo",
+      "name": "Pode Chamar Evolution?"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $json.logoutUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        620,
+        -140
+      ],
+      "id": "del-loja-evo-logout",
+      "name": "Desconectar Instancia Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $('Preparar Chamada Evolution').item.json.deleteUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Preparar Chamada Evolution').item.json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        -140
+      ],
+      "id": "del-loja-evo-delete",
+      "name": "Deletar Instancia Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.lojas\nSET \n  deleted_at = NOW(),\n  ativo = false,\n  updated_at = NOW()\nWHERE id = $1\nRETURNING id, nome, deleted_at, ativo;\n",
+        "options": {
+          "queryReplacement": "={{ [$('Preparar Chamada Evolution').first().json.lojaId] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1060,
+        -60
+      ],
+      "id": "del-loja-soft-del-db",
+      "name": "Soft Delete Loja no Banco",
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const updated = $input.item.json || {};\nreturn {\n  json: {\n    ok: true,\n    message: `Loja \"${updated.nome || updated.id}\" excluída e desconectada com sucesso!`,\n    loja: updated\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        -60
+      ],
+      "id": "del-loja-resp-success",
+      "name": "Formatar Retorno Sucesso"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Validar Admin e Parametros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Admin e Parametros": {
+      "main": [
+        [
+          {
+            "node": "Dados Válidos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados Válidos?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Loja no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retornar Erro Validação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Loja no Banco": {
+      "main": [
+        [
+          {
+            "node": "Preparar Chamada Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Chamada Evolution": {
+      "main": [
+        [
+          {
+            "node": "Pode Chamar Evolution?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pode Chamar Evolution?": {
+      "main": [
+        [
+          {
+            "node": "Desconectar Instancia Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Soft Delete Loja no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desconectar Instancia Evolution": {
+      "main": [
+        [
+          {
+            "node": "Deletar Instancia Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deletar Instancia Evolution": {
+      "main": [
+        [
+          {
+            "node": "Soft Delete Loja no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Soft Delete Loja no Banco": {
+      "main": [
+        [
+          {
+            "node": "Formatar Retorno Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+
