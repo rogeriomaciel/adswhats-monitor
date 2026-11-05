@@ -24,7 +24,7 @@ O **AdsWhats Monitor** foca **100% em visibilidade de tráfego, auditoria de ate
 * **Proteção Anti-Replay:** Tabela de logs (`webhook_evolution_logs`) para evitar processamento duplicado de mensagens (`message_id UNIQUE`).
 * **Atribuição por Mensagem:** Extração de metadados de campanhas Click-to-WhatsApp (`adId`, `ctwaClid`, título, tema e canal) diretamente em cada mensagem recebida.
 * **Cálculo Determinístico de SLA:** Medição em segundos entre a mensagem `inbound` do cliente e a primeira resposta `outbound` da loja.
-* **Onboarding Público (`/conectar/:token`):** Página externa segura e sem senha para o lojista parear o WhatsApp da loja via QR Code.
+* **Onboarding Público (`/conectar/:token`):** Página externa segura e sem senha para o lojista parear o WhatsApp da loja via QR Code, incluindo central de diagnóstico interativa (FAQ com soluções para limite de aparelhos, rate-limit temporário da Meta e botão de auto-recuperação/reset de sessão).
 
 ### C. Barramento de Ações do Painel (n8n Actions)
 * Frontend chama `POST /app/paneladswhats` com `{ action: "ACTION_NAME", payload: { ... } }`.

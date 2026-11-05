@@ -16,6 +16,9 @@ import {
   ExternalLink,
   Sparkles,
   Zap,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,6 +43,7 @@ export default function PublicConnect() {
   const [qrCodeError, setQrCodeError] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
   const [activeOsTab, setActiveOsTab] = useState<"android" | "iphone">("android");
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   const pollIntervalRef = useRef<number | null>(null);
   const pollAttemptsRef = useRef<number>(0);
@@ -433,6 +437,145 @@ export default function PublicConnect() {
                   </li>
                 </ol>
               )}
+            </div>
+
+            {/* FAQ e Resolução de Problemas */}
+            <div className="pt-4 border-t border-slate-800 space-y-2.5">
+              <div className="flex items-center gap-2 pb-1">
+                <HelpCircle className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold text-slate-300">
+                  Dúvidas ou problemas ao escanear?
+                </h3>
+              </div>
+
+              {/* Item 0: Erro "Não foi possível conectar o dispositivo" */}
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 overflow-hidden transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(openFaq === 0 ? null : 0)}
+                  className="w-full p-3 text-left flex items-center justify-between gap-2 hover:bg-amber-500/10 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="text-xs font-semibold text-amber-200">
+                      Deu o erro: &ldquo;Não foi possível conectar o dispositivo&rdquo;?
+                    </span>
+                  </div>
+                  {openFaq === 0 ? (
+                    <ChevronUp className="w-4 h-4 text-amber-400 shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                  )}
+                </button>
+                {openFaq === 0 && (
+                  <div className="px-3.5 pb-3.5 pt-1 text-[11px] text-slate-300 space-y-2 border-t border-amber-500/20 leading-relaxed">
+                    <p className="text-slate-400">
+                      Esse aviso é exibido pelo próprio WhatsApp no celular quando ele recusa o pareamento de segurança. Siga este passo a passo:
+                    </p>
+                    <ul className="space-y-1.5 list-disc pl-4 text-slate-300">
+                      <li>
+                        <strong>Desconecte aparelhos antigos:</strong> No celular, acesse <em>Aparelhos conectados</em> e encerre sessões que não estiver usando. O limite máximo do WhatsApp é de 4 aparelhos.
+                      </li>
+                      <li>
+                        <strong>Espere 10 a 15 minutos:</strong> Se você tentou escanear várias vezes seguidas, o WhatsApp impõe um bloqueio temporário de segurança no número. Ficar tentando seguidamente renova a espera.
+                      </li>
+                      <li>
+                        <strong>Troque do Wi-Fi para o 4G/5G:</strong> Redes Wi-Fi corporativas ou com oscilação derrubam a validação criptográfica do WhatsApp.
+                      </li>
+                      <li>
+                        <strong>Clique em &ldquo;Resetar Sessão e Novo QR Code&rdquo;:</strong> No botão amarelo acima, para limpar conexões pendentes no servidor e abrir um canal virgem.
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Item 1: QR Code expirou ou não foca */}
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(openFaq === 1 ? null : 1)}
+                  className="w-full p-3 text-left flex items-center justify-between gap-2 hover:bg-slate-900 transition-colors"
+                >
+                  <span className="text-xs font-medium text-slate-300">
+                    A câmera não foca ou o QR Code expirou?
+                  </span>
+                  {openFaq === 1 ? (
+                    <ChevronUp className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                  )}
+                </button>
+                {openFaq === 1 && (
+                  <div className="px-3.5 pb-3.5 pt-1 text-[11px] text-slate-400 space-y-1.5 border-t border-slate-800 leading-relaxed">
+                    <p>
+                      • Aumente o brilho do monitor ou tela onde o QR Code está aparecendo.
+                    </p>
+                    <p>
+                      • Afaste o celular cerca de 20 a 30 cm da tela para que a câmera consiga calibrar o foco.
+                    </p>
+                    <p>
+                      • Se o código ficou mais de 1 minuto na tela, clique no botão <strong>&ldquo;Recarregar QR Code&rdquo;</strong> para gerar um código atualizado.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Item 2: WhatsApp Beta ou Modificado */}
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(openFaq === 2 ? null : 2)}
+                  className="w-full p-3 text-left flex items-center justify-between gap-2 hover:bg-slate-900 transition-colors"
+                >
+                  <span className="text-xs font-medium text-slate-300">
+                    Usa WhatsApp Beta ou aplicativo modificado (GB WhatsApp)?
+                  </span>
+                  {openFaq === 2 ? (
+                    <ChevronUp className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                  )}
+                </button>
+                {openFaq === 2 && (
+                  <div className="px-3.5 pb-3.5 pt-1 text-[11px] text-slate-400 space-y-1.5 border-t border-slate-800 leading-relaxed">
+                    <p>
+                      Versões não oficiais (como GB WhatsApp ou WhatsApp Plus) ou versões de teste (WhatsApp Beta) possuem instabilidades conhecidas de compatibilidade com pareamento via Web.
+                    </p>
+                    <p>
+                      Para conectar normalmente, utilize o aplicativo oficial do WhatsApp (padrão ou Business) devidamente atualizado pela Google Play Store ou Apple App Store.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Item 3: É seguro conectar? */}
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(openFaq === 3 ? null : 3)}
+                  className="w-full p-3 text-left flex items-center justify-between gap-2 hover:bg-slate-900 transition-colors"
+                >
+                  <span className="text-xs font-medium text-slate-300">
+                    É seguro conectar o WhatsApp da minha empresa?
+                  </span>
+                  {openFaq === 3 ? (
+                    <ChevronUp className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                  )}
+                </button>
+                {openFaq === 3 && (
+                  <div className="px-3.5 pb-3.5 pt-1 text-[11px] text-slate-400 space-y-1.5 border-t border-slate-800 leading-relaxed">
+                    <p>
+                      Sim. A conexão é estabelecida através da tecnologia oficial de múltiplos aparelhos do WhatsApp Web, protegida por criptografia de ponta a ponta.
+                    </p>
+                    <p>
+                      O sistema não solicita senhas pessoais e opera exclusivamente para mensurar o tráfego das suas campanhas de anúncios e atendimento aos clientes da sua loja.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
