@@ -178,16 +178,22 @@ export default function CriativosPage() {
     return calculateScore(selectedLojaPerf);
   }, [selectedLojaPerf]);
 
-  // SLA Efetivo de Anúncios (prioriza tempo de anúncios e mediana para eliminar distorções de mensagens da madrugada)
+  // SLA Efetivo de Anúncios (prioriza mediana no horário comercial para eliminar distorções da madrugada)
   const effectiveSLA = useMemo(() => {
+    if (resumo.tempo_mediano_ad_comercial_segundos && resumo.tempo_mediano_ad_comercial_segundos > 0) {
+      return resumo.tempo_mediano_ad_comercial_segundos;
+    }
     if (resumo.tempo_mediano_ad_segundos && resumo.tempo_mediano_ad_segundos > 0) {
       return resumo.tempo_mediano_ad_segundos;
     }
-    if (resumo.tempo_medio_ad_segundos && resumo.tempo_medio_ad_segundos > 0) {
-      return resumo.tempo_medio_ad_segundos;
+    if (resumo.tempo_mediano_comercial_segundos && resumo.tempo_mediano_comercial_segundos > 0) {
+      return resumo.tempo_mediano_comercial_segundos;
     }
     if (resumo.tempo_mediano_segundos && resumo.tempo_mediano_segundos > 0) {
       return resumo.tempo_mediano_segundos;
+    }
+    if (resumo.tempo_medio_ad_segundos && resumo.tempo_medio_ad_segundos > 0) {
+      return resumo.tempo_medio_ad_segundos;
     }
     return resumo.tempo_medio_segundos || 0;
   }, [resumo]);
@@ -220,7 +226,7 @@ export default function CriativosPage() {
       .sort((a, b) => {
         if (creativeSort === "leads") return (b.total_pessoas_unicas || 0) - (a.total_pessoas_unicas || 0);
         if (creativeSort === "messages") return (b.total_mensagens || 0) - (a.total_mensagens || 0);
-        if (creativeSort === "sla") return (b.tempo_medio_segundos || 0) - (a.tempo_medio_segundos || 0);
+        if (creativeSort === "sla") return (b.tempo_mediano_segundos ?? b.tempo_medio_segundos ?? 0) - (a.tempo_mediano_segundos ?? a.tempo_medio_segundos ?? 0);
         if (creativeSort === "qualidade") {
           const qualB = b.total_pessoas_unicas > 0 ? ((b.conversas_profundas || 0) / b.total_pessoas_unicas) : 0;
           const qualA = a.total_pessoas_unicas > 0 ? ((a.conversas_profundas || 0) / a.total_pessoas_unicas) : 0;
@@ -529,7 +535,7 @@ export default function CriativosPage() {
                   {/* Card 3: Velocidade Efetiva nos Anúncios */}
                   <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground font-semibold">SLA Médio nos Anúncios</span>
+                      <span className="text-xs text-muted-foreground font-semibold">SLA Mediano (Horário Comercial)</span>
                       <div
                         className={`p-2 rounded-xl ${
                           isOperacaoAgil ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
@@ -542,7 +548,7 @@ export default function CriativosPage() {
                       <h3 className="text-3xl font-extrabold font-display tracking-tight text-foreground">
                         {formatSLA(effectiveSLA)}
                       </h3>
-                      <div className="flex items-center gap-2 mt-1.5">
+                      <div className="flex items-center flex-wrap gap-2 mt-1.5">
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             isOperacaoAgil ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500"
@@ -551,7 +557,7 @@ export default function CriativosPage() {
                           {isOperacaoAgil ? "⚡ Resposta Imediata" : "⚠️ Demora Acima do Ideal"}
                         </span>
                         <span className="text-[10px] text-muted-foreground font-mono">
-                          Meta: &lt;5min
+                          Fora do horário: {formatSLA(resumo.tempo_mediano_fora_horario_segundos || 0)} ({resumo.pct_fora_horario || 0}%)
                         </span>
                       </div>
                     </div>
@@ -573,6 +579,48 @@ export default function CriativosPage() {
                         <span className="text-[10px] text-muted-foreground font-mono">
                           {totalCanais === 1 ? "1 mensagem de anúncio" : `${totalCanais} mensagens de anúncio`}
                         </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Indicador de Follow-up & Horário Comercial */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-2xs flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <RefreshCw className="w-3.5 h-3.5 text-primary" />
+                        Indicador de Follow-up (Recuperação)
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        <strong className="text-foreground">{resumo.clientes_com_followup || 0}</strong> de{" "}
+                        <strong className="text-foreground">{resumo.clientes_pararam_responder || 0}</strong> contatos que pararam de responder receberam nova mensagem da loja
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-2xl font-extrabold font-display text-primary">
+                        {resumo.taxa_followup_pct ?? 0}%
+                      </span>
+                      <span className="block text-[10px] text-muted-foreground font-mono">Taxa de Follow-up</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-2xs flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        Horário Comercial vs Madrugada/Fora
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        <strong className="text-foreground">{resumo.pct_fora_horario ?? 0}%</strong> dos leads chegaram fora do expediente configurado nas lojas
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 font-mono text-xs space-y-0.5">
+                      <div className="text-emerald-500 font-bold">
+                        Comercial: {formatSLA(resumo.tempo_mediano_comercial_segundos || resumo.tempo_mediano_segundos)}
+                      </div>
+                      <div className="text-muted-foreground">
+                        Fora: {formatSLA(resumo.tempo_mediano_fora_horario_segundos || 0)}
                       </div>
                     </div>
                   </div>
@@ -604,8 +652,9 @@ export default function CriativosPage() {
                       {lojasPerformance.map((lp) => {
                         const score = calculateScore(lp);
                         const hasActivity = score !== null;
-                        const sla = lp.tempo_mediano_ad_segundos || lp.tempo_medio_ad_segundos || lp.tempo_medio_segundos || 0;
-                        const isSlaBom = sla > 0 && sla <= 300;
+                        const hasAds = (lp.total_leads_ad || lp.total_ads || 0) > 0;
+                        const slaAds = hasAds ? (lp.tempo_mediano_ad_segundos || lp.tempo_medio_ad_segundos || 0) : 0;
+                        const isSlaBom = hasAds && slaAds > 0 && slaAds <= 300;
                         const esfriando = lp.leads_esfriando || 0;
                         const taxa = lp.taxa_resposta_pct;
 
@@ -655,15 +704,20 @@ export default function CriativosPage() {
                                   <span className="text-[10px] text-muted-foreground block font-medium">SLA Anúncios</span>
                                   <span
                                     className={`text-xs font-bold font-mono inline-flex items-center gap-1 ${
-                                      !hasActivity
+                                      !hasActivity || !hasAds
                                         ? "text-muted-foreground"
                                         : isSlaBom
                                         ? "text-emerald-500"
                                         : "text-amber-500"
                                     }`}
+                                    title={
+                                      !hasAds && lp.tempo_mediano_segundos
+                                        ? `Sem leads de anúncio. SLA orgânico: ${formatSLA(lp.tempo_mediano_segundos)}`
+                                        : undefined
+                                    }
                                   >
                                     <Clock className="w-3 h-3" />
-                                    {hasActivity ? formatSLA(sla) : "--"}
+                                    {hasActivity && hasAds ? formatSLA(slaAds) : "Sem ads"}
                                   </span>
                                 </div>
 
@@ -826,7 +880,7 @@ export default function CriativosPage() {
                                     {c.titulo || `Anúncio #${c.ad_id}`}
                                   </h4>
                                   <span className="text-[10px] text-muted-foreground font-mono">
-                                    {c.total_pessoas_unicas === 1 ? "1 lead único" : `${c.total_pessoas_unicas} leads únicos`} • SLA {formatSLA(c.tempo_medio_segundos)}
+                                    {c.total_pessoas_unicas === 1 ? "1 lead único" : `${c.total_pessoas_unicas} leads únicos`} • SLA {formatSLA(c.tempo_mediano_segundos ?? c.tempo_medio_segundos)}
                                   </span>
                                 </div>
                               </div>
@@ -1089,7 +1143,7 @@ export default function CriativosPage() {
                             ? `https://www.facebook.com/ads/library/?id=${c.ad_id}`
                             : null);
 
-                        const slaMedio = c.tempo_medio_segundos || 0;
+                        const slaMedio = c.tempo_mediano_segundos ?? c.tempo_medio_segundos ?? 0;
                         const isSlaBom = slaMedio > 0 && slaMedio <= 300;
                         const leadsUnicos = c.total_pessoas_unicas || 0;
                         const conversasProfundas = c.conversas_profundas || 0;

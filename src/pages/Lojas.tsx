@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getLojas, deleteLoja, restoreLoja } from "@/lib/api";
+import { getLojas, getConnectToken, deleteLoja, restoreLoja } from "@/lib/api";
 import { Loja } from "@/types/loja";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
@@ -177,14 +177,20 @@ export default function LojasPage() {
     }
   };
 
-  const handleCopiarLinkLojista = (loja: Loja) => {
-    if (!loja.connect_token) {
+  const handleCopiarLinkLojista = async (loja: Loja) => {
+    if (!loja.has_connect_token) {
       toast.error("Esta loja ainda não possui token de conexão. Execute as migrações no sistema.");
       return;
     }
-    const link = `${window.location.origin}/conectar/${loja.connect_token}`;
-    navigator.clipboard.writeText(link);
-    toast.success(`Link de conexão copiado! Envie ao lojista de "${loja.nome}".`);
+    try {
+      const token = await getConnectToken(loja.id);
+      if (!token) return;
+      const link = `${window.location.origin}/conectar/${token}`;
+      await navigator.clipboard.writeText(link);
+      toast.success(`Link de conexão copiado! Envie ao lojista de "${loja.nome}".`);
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao obter link de conexão.");
+    }
   };
 
   return (
@@ -400,9 +406,18 @@ export default function LojasPage() {
                               {loja.nome?.substring(0, 2).toUpperCase() || "LJ"}
                             </div>
                             <div>
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-foreground">{loja.nome}</span>
                                 <span className="text-[10px] font-mono text-muted-foreground">#{loja.id}</span>
+                                {loja.ativo && (!loja.ultima_mensagem_at || Date.now() - new Date(loja.ultima_mensagem_at).getTime() > 24 * 60 * 60 * 1000) && (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-semibold border border-amber-500/30"
+                                    title={loja.ultima_mensagem_at ? `Última mensagem: ${new Date(loja.ultima_mensagem_at).toLocaleString("pt-BR")}` : "Nenhuma mensagem registrada"}
+                                  >
+                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                    Sem sinal &gt;24h
+                                  </span>
+                                )}
                               </div>
                               {dados?.email && (
                                 <span className="text-[11px] text-muted-foreground block">{dados.email}</span>

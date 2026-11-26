@@ -35,3 +35,6 @@ tmp/
 scratch/
 sec/
 *.pem
+
+# Docs
+docs/

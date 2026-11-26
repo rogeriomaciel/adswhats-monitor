@@ -52,7 +52,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  m.id,\n  m.loja_id,\n  m.pessoa_id,\n  m.message_id,\n  m.direcao,\n  m.tipo,\n  m.conteudo,\n  m.midia_url,\n  m.status_entrega,\n  m.is_ad,\n  m.criativo_id,\n  cr.ad_id AS criativo_ad_id,\n  cr.titulo AS criativo_titulo,\n  cr.tema AS criativo_tema,\n  cr.canal AS criativo_canal,\n  cr.media_url AS criativo_media_url,\n  cr.source_url AS criativo_source_url,\n  m.ctwa_clid,\n  m.tempo_resposta_segundos,\n  m.respondida_em,\n  m.respondida_por_mensagem_id,\n  m.metadata_json,\n  m.timestamp_mensagem,\n  m.created_at\nFROM mensagens m\nJOIN lojas l ON l.id = m.loja_id\nLEFT JOIN criativos cr ON cr.id = m.criativo_id\nWHERE l.deleted_at IS NULL\n  AND m.pessoa_id = $1\n  AND ($2::int IS NULL OR m.loja_id = $2::int)\nORDER BY m.created_at ASC;\n",
+        "query": "SELECT \n  m.id,\n  m.loja_id,\n  m.pessoa_id,\n  m.message_id,\n  m.direcao,\n  m.tipo,\n  m.conteudo,\n  m.midia_url,\n  m.status_entrega,\n  m.is_ad,\n  m.criativo_id,\n  cr.ad_id AS criativo_ad_id,\n  cr.titulo AS criativo_titulo,\n  cr.tema AS criativo_tema,\n  cr.canal AS criativo_canal,\n  cr.media_url AS criativo_media_url,\n  cr.source_url AS criativo_source_url,\n  m.ctwa_clid,\n  m.tempo_resposta_segundos,\n  m.respondida_em,\n  m.respondida_por_mensagem_id,\n  m.metadata_json,\n  m.timestamp_mensagem,\n  m.created_at\nFROM mensagens m\nLEFT JOIN criativos cr ON cr.id = m.criativo_id\nWHERE m.pessoa_id = $1\n  AND ($2::int IS NULL OR m.loja_id = $2::int)\nORDER BY m.created_at ASC\nLIMIT 500;\n",
         "options": {
           "queryReplacement": "={{ [$('Preparar Parametros').item.json.pessoaId, $('Preparar Parametros').item.json.lojaId] }}"
         }

@@ -29,7 +29,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  l.connect_token,\n  l.ativo,\n  l.deleted_at,\n  l.config_json,\n  l.created_at,\n  l.updated_at,\n  COALESCE((SELECT COUNT(*) FROM pessoas p WHERE p.loja_id = l.id), 0)::int AS total_contatos,\n  COALESCE((SELECT COUNT(*) FROM mensagens m WHERE m.loja_id = l.id), 0)::int AS total_mensagens\nFROM lojas l\nWHERE ($1::boolean = true OR l.deleted_at IS NULL)\nORDER BY l.id ASC;\n",
+        "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  (l.connect_token IS NOT NULL AND l.connect_token <> '')::boolean AS has_connect_token,\n  l.ativo,\n  l.deleted_at,\n  l.config_json,\n  l.created_at,\n  l.updated_at,\n  COALESCE((SELECT COUNT(*) FROM pessoas p WHERE p.loja_id = l.id), 0)::int AS total_contatos,\n  COALESCE((SELECT COUNT(*) FROM mensagens m WHERE m.loja_id = l.id), 0)::int AS total_mensagens,\n  (SELECT MAX(COALESCE(p.last_message_at, p.created_at)) FROM pessoas p WHERE p.loja_id = l.id) AS ultima_mensagem_at\nFROM lojas l\nWHERE ($1::boolean = true OR l.deleted_at IS NULL)\nORDER BY l.id ASC;\n",
         "options": {
           "queryReplacement": "={{ [$json.includeDeleted] }}"
         }
@@ -53,7 +53,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const items = $input.all();\nconst lojas = items.map(item => {\n  const loja = { ...item.json };\n  if (loja.config_json) {\n    const config = { ...loja.config_json };\n    if (config.evolutionapi) {\n      const { apikey, token, ...safeEvolution } = config.evolutionapi;\n      config.evolutionapi = {\n        ...safeEvolution,\n        hasApiKey: Boolean(apikey),\n        hasToken: Boolean(token)\n      };\n    }\n    loja.config_json = config;\n  }\n  return loja;\n});\n\nreturn {\n  json: {\n    ok: true,\n    lojas: lojas\n  }\n};"
+        "jsCode": "const items = $input.all();\nconst lojas = items.map(item => {\n  const loja = { ...item.json };\n  delete loja.connect_token;\n  if (loja.config_json) {\n    const config = { ...loja.config_json };\n    if (config.evolutionapi) {\n      const { apikey, token, ...safeEvolution } = config.evolutionapi;\n      config.evolutionapi = {\n        ...safeEvolution,\n        hasApiKey: Boolean(apikey),\n        hasToken: Boolean(token)\n      };\n    }\n    loja.config_json = config;\n  }\n  return loja;\n});\n\nreturn {\n  json: {\n    ok: true,\n    lojas: lojas\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

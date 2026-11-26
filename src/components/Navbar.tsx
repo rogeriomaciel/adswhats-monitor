@@ -1,26 +1,43 @@
 import { Link, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { getLojas } from "@/lib/api";
 import { Logo } from "@/components/brand/Logo";
 import {
   LogOut,
   Building2,
   LayoutDashboard,
   MessageSquare,
-  Sparkles,
   Shield,
-  Radio,
   Sun,
   Moon,
   TrendingUp,
   Search,
+  AlertTriangle,
 } from "lucide-react";
+
+const SILENCE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
 export function Navbar() {
   const { user, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const location = useLocation();
   const isAdmin = (user?.role || "admin").toLowerCase() === "admin";
+
+  const { data: lojas = [] } = useQuery({
+    queryKey: ["lojas"],
+    queryFn: () => getLojas(),
+    staleTime: 60_000,
+  });
+
+  const lojasAtivas = lojas.filter((l) => l.ativo);
+  const now = Date.now();
+  const lojasEmSilencio = lojasAtivas.filter((l) => {
+    if (!l.ultima_mensagem_at) return true;
+    const lastTs = new Date(l.ultima_mensagem_at).getTime();
+    return Number.isFinite(lastTs) && now - lastTs > SILENCE_THRESHOLD_MS;
+  });
 
   const navItems = [
     { label: "Visão Geral", href: "/", icon: LayoutDashboard },
@@ -37,17 +54,32 @@ export function Navbar() {
           <Logo size="sm" showBadge={true} />
         </Link>
 
-        {/* Live Operational Indicator (Zero menções a tecnologias) */}
-        <div
-          className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-500 text-[11px] font-semibold shadow-xs"
-          title="Fila de atendimento sincronizada em tempo real"
-        >
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span className="tracking-tight">Ao Vivo • Fila Sincronizada</span>
-        </div>
+        {/* Real Sync / Silence Indicator */}
+        {lojasAtivas.length > 0 && (
+          lojasEmSilencio.length > 0 ? (
+            <Link
+              to="/lojas"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[11px] font-semibold shadow-xs hover:bg-amber-500/20 transition-colors"
+              title={`${lojasEmSilencio.length} loja(s) ativa(s) sem receber mensagem há mais de 24h`}
+            >
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              <span className="tracking-tight">
+                {lojasEmSilencio.length} loja{lojasEmSilencio.length > 1 ? "s" : ""} sem sinal (&gt;24h)
+              </span>
+            </Link>
+          ) : (
+            <div
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-500 text-[11px] font-semibold shadow-xs"
+              title="Todas as lojas ativas receberam mensagens nas últimas 24h"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="tracking-tight">Lojas Sincronizadas</span>
+            </div>
+          )
+        )}
 
         {/* Navigation links */}
         <nav className="hidden md:flex items-center gap-1">

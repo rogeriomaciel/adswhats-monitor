@@ -36,12 +36,13 @@ export interface Loja {
   id: number;
   nome: string;
   whatsapp_loja: string;
-  connect_token?: string;
+  has_connect_token?: boolean;
   ativo: boolean;
   deleted_at?: string | null;
   config_json?: LojaConfig;
   total_contatos?: number;
   total_mensagens?: number;
+  ultima_mensagem_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

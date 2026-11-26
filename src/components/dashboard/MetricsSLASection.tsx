@@ -184,25 +184,28 @@ export function MetricsSLASection({
             {/* SLA Médio */}
             <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col justify-between space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium">Tempo Médio de Atendimento</span>
+                <span className="text-xs text-muted-foreground font-medium">SLA Mediano (Horário Comercial)</span>
                 <div className="p-2 rounded-xl bg-primary/10 text-primary">
                   <Clock className="w-4 h-4" />
                 </div>
               </div>
               <div>
                 <h3 className="text-2xl font-bold font-display text-foreground tracking-tight">
-                  {formatSLA(resumo.tempo_medio_segundos)}
+                  {formatSLA(resumo.tempo_mediano_comercial_segundos || resumo.tempo_mediano_segundos)}
                 </h3>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center flex-wrap gap-2 mt-1">
                   <span className="text-[11px] text-muted-foreground font-mono">
-                    Mediana: <strong className="text-foreground">{formatSLA(resumo.tempo_mediano_segundos)}</strong>
+                    Geral: <strong className="text-foreground">{formatSLA(resumo.tempo_mediano_segundos)}</strong>
+                    {typeof resumo.tempo_mediano_fora_horario_segundos === "number" && resumo.tempo_mediano_fora_horario_segundos > 0 && (
+                      <> • Madrugada/Fora: <strong className="text-foreground">{formatSLA(resumo.tempo_mediano_fora_horario_segundos)}</strong></>
+                    )}
                   </span>
                   <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                    resumo.tempo_medio_segundos <= 300 
+                    (resumo.tempo_mediano_comercial_segundos || resumo.tempo_mediano_segundos) <= 300 
                       ? "bg-emerald-500/10 text-emerald-500" 
                       : "bg-amber-500/10 text-amber-500"
                   }`}>
-                    {resumo.tempo_medio_segundos <= 300 ? "Meta Batida" : "Atenção"}
+                    {(resumo.tempo_mediano_comercial_segundos || resumo.tempo_mediano_segundos) <= 300 ? "Meta Batida" : "Atenção"}
                   </span>
                 </div>
               </div>
@@ -403,7 +406,7 @@ export function MetricsSLASection({
                             <td className="py-3 px-4 text-center">
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-muted text-foreground font-mono font-bold text-[11px]">
                                 <Clock className="w-3 h-3 text-muted-foreground" />
-                                {formatSLA(c.tempo_medio_segundos)}
+                                {formatSLA(c.tempo_mediano_segundos ?? c.tempo_medio_segundos)}
                               </span>
                             </td>
 

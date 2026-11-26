@@ -25,6 +25,8 @@ export interface Criativo {
   total_pessoas_unicas: number;
   total_respondidas?: number;
   tempo_medio_segundos?: number;
+  tempo_mediano_segundos?: number;
+  tempo_mediano_comercial_segundos?: number;
   primeira_mensagem_at?: string;
   ultima_mensagem_at?: string;
   created_at?: string;
@@ -111,12 +113,19 @@ export interface ResumoMetricasSLA {
   total_pendentes: number;
   tempo_medio_segundos: number;
   tempo_mediano_segundos: number;
+  tempo_mediano_comercial_segundos?: number;
+  tempo_mediano_fora_horario_segundos?: number;
   tempo_medio_ad_segundos?: number;
   tempo_mediano_ad_segundos?: number;
+  tempo_mediano_ad_comercial_segundos?: number;
+  pct_fora_horario?: number;
   taxa_resposta_pct: number;
   leads_esfriando?: number;
   leads_ad_sem_resposta?: number;
   total_leads_ad?: number;
+  clientes_pararam_responder?: number;
+  clientes_com_followup?: number;
+  taxa_followup_pct?: number;
 }
 
 export interface LojaPerformance {
@@ -130,6 +139,9 @@ export interface LojaPerformance {
   total_pendentes?: number;
   leads_esfriando?: number;
   tempo_medio_segundos: number;
+  tempo_mediano_segundos?: number;
+  tempo_mediano_comercial_segundos?: number;
+  tempo_mediano_fora_horario_segundos?: number;
   tempo_medio_ad_segundos?: number;
   tempo_mediano_ad_segundos?: number;
   taxa_resposta_pct?: number | null;

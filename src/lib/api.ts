@@ -66,6 +66,18 @@ export async function getLojas(options?: boolean | { includeDeleted?: boolean } 
   return res.lojas || [];
 }
 
+/** Buscar token público de conexão de uma loja específica sob demanda */
+export async function getConnectToken(lojaId: number): Promise<string | null> {
+  const res = await callPanelAction<{ ok: boolean; connect_token?: string; message?: string }>(
+    "GET-CONNECT-TOKEN",
+    { loja_id: lojaId }
+  );
+  if (!res.ok || !res.connect_token) {
+    throw new Error(res.message || "Token de conexão não encontrado para esta loja.");
+  }
+  return res.connect_token;
+}
+
 /** Excluir loja logicamente (soft-delete) e desconectar/deletar Evolution API */
 export async function deleteLoja(lojaId: number): Promise<{ ok: boolean; message?: string }> {
   return await callPanelAction("DELETE-LOJA", { loja_id: lojaId });
@@ -158,16 +170,66 @@ export async function callEvolutionApi(
   }
 }
 
+export interface ContatosResumo {
+  total_contatos: number;
+  leads_ads: number;
+  sem_resposta: number;
+  sla_estourado: number;
+  total_filtrado: number;
+}
+
+export interface ContatosPaginatedResponse {
+  contatos: Pessoa[];
+  resumo: ContatosResumo;
+}
+
+/** Buscar contatos monitorados com filtros e resumo real do banco */
+export async function getContatosComResumo(filters: {
+  loja_id?: number | null;
+  search?: string;
+  origem?: string;
+  quick_filter?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<ContatosPaginatedResponse> {
+  const res = await callPanelAction<{
+    ok: boolean;
+    contatos?: Pessoa[];
+    resumo?: ContatosResumo;
+  }>("GET-CONTACTS", filters);
+  const contatos = res.contatos || [];
+  const resumo: ContatosResumo = res.resumo || {
+    total_contatos: contatos.length,
+    leads_ads: 0,
+    sem_resposta: 0,
+    sla_estourado: 0,
+    total_filtrado: contatos.length,
+  };
+  return { contatos, resumo };
+}
+
 /** Buscar contatos monitorados com filtros */
 export async function getContatos(filters: {
   loja_id?: number | null;
   search?: string;
   origem?: string;
+  quick_filter?: string;
   limit?: number;
   offset?: number;
 } = {}): Promise<Pessoa[]> {
-  const res = await callPanelAction<{ ok: boolean; contatos?: Pessoa[] }>("GET-CONTACTS", filters);
-  return res.contatos || [];
+  const res = await getContatosComResumo(filters);
+  return res.contatos;
+}
+
+/** Marcar ou desmarcar contato como conversa interna (não é lead) */
+export async function toggleContatoInterno(
+  pessoaId: number,
+  isInterno: boolean
+): Promise<{ ok: boolean; pessoa_id?: number; is_interno?: boolean; message?: string }> {
+  return await callPanelAction("TOGGLE-CONTATO-INTERNO", {
+    pessoa_id: pessoaId,
+    is_interno: isInterno,
+  });
 }
 
 /** Buscar histórico de chat de um contato específico */

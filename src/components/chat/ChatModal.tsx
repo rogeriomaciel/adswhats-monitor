@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getChatMessages } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getChatMessages, toggleContatoInterno } from "@/lib/api";
+import { toast } from "sonner";
 import { Pessoa, Mensagem } from "@/types/contato";
 import {
   X,
@@ -204,7 +205,7 @@ function CustomAudioPlayer({
       </div>
 
       {/* Transcription drawer */}
-      {transcription && (
+      {transcription && transcription !== "[Mensagem de Áudio]" && transcription !== "[Áudio]" ? (
         <div className="space-y-1">
           <button
             type="button"
@@ -225,6 +226,8 @@ function CustomAudioPlayer({
             </div>
           )}
         </div>
+      ) : (
+        <p className="text-[10px] text-muted-foreground italic">Áudio sem transcrição disponível</p>
       )}
     </div>
   );
@@ -236,6 +239,8 @@ function CustomAudioPlayer({
  */
 export function ChatModal({ isOpen, onClose, contato }: ChatModalProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+  const [isTogglingInterno, setIsTogglingInterno] = useState(false);
 
   // Fechar com a tecla ESC
   useEffect(() => {
@@ -364,6 +369,45 @@ export function ChatModal({ isOpen, onClose, contato }: ChatModalProps) {
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              disabled={isTogglingInterno}
+              onClick={async () => {
+                const nextInterno = !Boolean(contato.metadata_json?.is_interno);
+                setIsTogglingInterno(true);
+                try {
+                  const res = await toggleContatoInterno(contato.id, nextInterno);
+                  if (res.ok) {
+                    toast.success(
+                      nextInterno
+                        ? "Contato marcado como interno (removido das métricas de leads)."
+                        : "Contato restaurado como lead."
+                    );
+                    queryClient.invalidateQueries({ queryKey: ["contatos"] });
+                    queryClient.invalidateQueries({ queryKey: ["contatos-dashboard"] });
+                    queryClient.invalidateQueries({ queryKey: ["metrics-sla"] });
+                    queryClient.invalidateQueries({ queryKey: ["metrics-sla-report"] });
+                    queryClient.invalidateQueries({ queryKey: ["metrics-sla-summary"] });
+                    onClose();
+                  } else {
+                    toast.error(res.message || "Erro ao atualizar contato.");
+                  }
+                } catch (err: any) {
+                  toast.error(err?.message || "Erro ao atualizar contato.");
+                } finally {
+                  setIsTogglingInterno(false);
+                }
+              }}
+              className="px-2.5 py-1.5 rounded-xl border border-border bg-background text-muted-foreground hover:text-amber-600 hover:border-amber-500/40 text-[11px] font-semibold transition-colors shadow-2xs disabled:opacity-50"
+              title="Marcar conversa como interna/pessoal para não contar como lead nem no SLA"
+            >
+              {isTogglingInterno
+                ? "Salvando..."
+                : contato.metadata_json?.is_interno
+                ? "Reativar Lead"
+                : "Não é Lead"}
+            </button>
+
             <button
               onClick={() => refetch()}
               disabled={isRefetching}
