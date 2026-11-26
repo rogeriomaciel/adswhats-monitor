@@ -38,6 +38,7 @@ export interface Loja {
   whatsapp_loja: string;
   has_connect_token?: boolean;
   ativo: boolean;
+  evolution_status?: "open" | "connecting" | "close" | "unknown";
   deleted_at?: string | null;
   config_json?: LojaConfig;
   total_contatos?: number;
@@ -45,6 +46,14 @@ export interface Loja {
   ultima_mensagem_at?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+/** Retorna o rótulo real de status da instância da loja na Evolution API */
+export function getLojaStatusLabel(loja: Loja): "Online" | "Conectando" | "Offline" | "Pausada" {
+  if (!loja.ativo) return "Pausada";
+  if (loja.evolution_status === "open") return "Online";
+  if (loja.evolution_status === "connecting") return "Conectando";
+  return "Offline";
 }
 
 export type EvolutionState = "open" | "connecting" | "close" | "disconnected" | "loading" | "error" | "unknown";

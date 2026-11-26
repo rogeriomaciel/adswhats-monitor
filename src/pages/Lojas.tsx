@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getLojas, getConnectToken, deleteLoja, restoreLoja } from "@/lib/api";
-import { Loja } from "@/types/loja";
+import { Loja, getLojaStatusLabel } from "@/types/loja";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { LojaModal } from "@/components/lojas/LojaModal";
@@ -243,10 +243,11 @@ export default function LojasPage() {
             <button
               onClick={() => refetch()}
               disabled={isRefetching}
-              className="p-2.5 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm"
-              title="Atualizar lista"
+              className="px-3 py-2.5 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm inline-flex items-center gap-2 text-xs font-semibold"
+              title="Consultar status atual de todas as instâncias na Evolution API"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
+              <span>{isRefetching ? "Sincronizando..." : "Sincronizar Status"}</span>
             </button>
 
             {isAdmin && !showDeleted && (
@@ -507,15 +508,24 @@ export default function LojasPage() {
                               Excluída
                             </span>
                           ) : (
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                                loja.ativo
+                            (() => {
+                              const statusLabel = getLojaStatusLabel(loja);
+                              const badgeClass =
+                                statusLabel === "Online"
                                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                  : "bg-muted text-muted-foreground border-border"
-                              }`}
-                            >
-                              {loja.ativo ? "Ativa" : "Inativa"}
-                            </span>
+                                  : statusLabel === "Conectando"
+                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                  : statusLabel === "Offline"
+                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                  : "bg-muted text-muted-foreground border-border";
+                              return (
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeClass}`}
+                                >
+                                  {statusLabel}
+                                </span>
+                              );
+                            })()
                           )}
                         </td>
 

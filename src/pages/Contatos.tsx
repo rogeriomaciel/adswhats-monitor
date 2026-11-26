@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getContatosComResumo, getLojas } from "@/lib/api";
 import { useRealtimeNotifications } from "@/lib/pusher";
 import { Pessoa } from "@/types/contato";
+import { getLojaStatusLabel } from "@/types/loja";
 import { Navbar } from "@/components/Navbar";
 import { ChatModal } from "@/components/chat/ChatModal";
 import { CustomDropdown, DropdownOption } from "@/components/ui/CustomDropdown";
@@ -165,7 +166,7 @@ export default function ContatosPage() {
       ...lojas.map((l) => ({
         value: l.id,
         label: l.nome,
-        badge: l.ativo ? "Online" : "Pausada",
+        badge: getLojaStatusLabel(l),
       })),
     ];
   }, [lojas]);

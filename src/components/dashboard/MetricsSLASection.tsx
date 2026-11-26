@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getMetricsSLA } from "@/lib/api";
-import { Loja } from "@/types/loja";
+import { Loja, getLojaStatusLabel } from "@/types/loja";
 import { CustomDropdown, DropdownOption } from "@/components/ui/CustomDropdown";
 import {
   Clock,
@@ -90,7 +90,7 @@ export function MetricsSLASection({
       ...lojas.map((l) => ({
         value: l.id,
         label: l.nome,
-        badge: l.ativo ? "Online" : "Pausada",
+        badge: getLojaStatusLabel(l),
       })),
     ];
   }, [lojas]);

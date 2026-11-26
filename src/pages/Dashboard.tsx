@@ -7,6 +7,7 @@ import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChatModal } from "@/components/chat/ChatModal";
 import { Pessoa } from "@/types/contato";
+import { getLojaStatusLabel } from "@/types/loja";
 import { CustomDropdown, DropdownOption } from "@/components/ui/CustomDropdown";
 import {
   Building2,
@@ -102,7 +103,7 @@ export default function Dashboard() {
   });
 
   const totalLojas = lojas.length;
-  const lojasAtivas = lojas.filter((l) => l.ativo).length;
+  const lojasOnline = lojas.filter((l) => l.ativo && l.evolution_status === "open").length;
   const lojasSemSinal = useMemo(() => {
     const threshold = Date.now() - 24 * 60 * 60 * 1000;
     return lojas
@@ -128,7 +129,7 @@ export default function Dashboard() {
       ...lojas.map((l) => ({
         value: l.id,
         label: l.nome,
-        badge: l.ativo ? "Online" : "Pausada",
+        badge: getLojaStatusLabel(l),
       })),
     ];
   }, [lojas]);
@@ -213,8 +214,8 @@ export default function Dashboard() {
               <h3 className="text-3xl font-extrabold font-display tracking-tight text-foreground">
                 {totalLojas}
               </h3>
-              <p className="text-[11px] text-emerald-500 font-bold mt-1">
-                {lojasAtivas} de {totalLojas} instâncias ativas
+              <p className={`text-[11px] font-bold mt-1 ${lojasOnline > 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                {lojasOnline} de {totalLojas} instâncias online
               </p>
             </div>
           </div>
@@ -448,29 +449,37 @@ export default function Dashboard() {
               </div>
 
               <div className="space-y-2">
-                {lojas.slice(0, 4).map((loja) => (
-                  <div
-                    key={loja.id}
-                    className="p-2.5 rounded-xl bg-background border border-border/60 flex items-center justify-between text-xs"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-bold text-foreground truncate">{loja.nome}</p>
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {loja.whatsapp_loja ? formatPhone(loja.whatsapp_loja) : "Aguardando conexão"}
+                {lojas.slice(0, 4).map((loja) => {
+                  const statusLabel = getLojaStatusLabel(loja);
+                  const badgeStyle =
+                    statusLabel === "Online"
+                      ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                      : statusLabel === "Conectando"
+                      ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                      : statusLabel === "Offline"
+                      ? "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                      : "bg-muted text-muted-foreground border-border";
+
+                  return (
+                    <div
+                      key={loja.id}
+                      className="p-2.5 rounded-xl bg-background border border-border/60 flex items-center justify-between text-xs"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-bold text-foreground truncate">{loja.nome}</p>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {loja.whatsapp_loja ? formatPhone(loja.whatsapp_loja) : "Aguardando conexão"}
+                        </span>
+                      </div>
+
+                      <span
+                        className={`text-[9px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${badgeStyle}`}
+                      >
+                        {statusLabel}
                       </span>
                     </div>
-
-                    <span
-                      className={`text-[9px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${
-                        loja.ativo
-                          ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                          : "bg-muted text-muted-foreground border-border"
-                      }`}
-                    >
-                      {loja.ativo ? "Online" : "Offline"}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
