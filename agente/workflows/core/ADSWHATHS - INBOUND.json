@@ -205,7 +205,7 @@
         "conditions": {
           "boolean": [
             {
-              "value1": "={{ $('Extrair Metadados').item.json.isAudio && $('Extrair Metadados').item.json.hasAudioBase64 }}",
+              "value1": "={{ $('Extrair Metadados').item.json.isAudio }}",
               "value2": true
             }
           ]
@@ -218,57 +218,205 @@
         -320
       ],
       "id": "inbound-if-audio",
-      "name": "É Áudio com Base64?"
+      "name": "É Áudio?"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const meta = $('Extrair Metadados').item.json || {};\nconst loja = $('Identificar Loja').item.json || {};\nconst groqApiKey = String(meta.configs?.groq_api_key || '').trim();\n\nif (!groqApiKey) {\n  return { json: { canTranscribe: false } };\n}\n\nconst rawB64 = String(meta.audioBase64 || '').replace(/^data:[^;]+;base64,/, '').trim();\nif (rawB64) {\n  return {\n    json: {\n      canTranscribe: true,\n      hasBase64: true,\n      audioBase64: rawB64,\n      groqApiKey\n    }\n  };\n}\n\nconst evo = loja.config_json?.evolutionapi || {};\nconst instanceName = (evo.instanceName || meta.instanceName || `loja-${loja.id}`).trim();\nconst apiUrl = (evo.apiUrl || meta.configs?.evolution_api_url || '').trim().replace(/\\/+$/, '');\nconst apikey = (evo.apikey || meta.configs?.evolution_api_key || '').trim();\n\nif (!apiUrl || !apikey || !instanceName || !meta.messageId) {\n  return { json: { canTranscribe: false } };\n}\n\nconst keyObj = meta.rawPayload?.data?.key || { id: meta.messageId };\n\nreturn {\n  json: {\n    canTranscribe: true,\n    hasBase64: false,\n    groqApiKey,\n    evoUrl: `${apiUrl}/chat/getBase64FromMediaMessage/${instanceName}`,\n    evoKey: apikey,\n    evoBody: {\n      message: { key: keyObj },\n      convertToMp4: false\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        820,
+        -480
+      ],
+      "id": "inbound-prep-audio-b64",
+      "name": "Preparar Audio Base64"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.canTranscribe }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        920,
+        -480
+      ],
+      "id": "inbound-if-can-transcribe",
+      "name": "Pode Transcrever?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasBase64 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        980,
+        -580
+      ],
+      "id": "inbound-if-has-b64",
+      "name": "Já tem Base64?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.evoUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.evoKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.evoBody) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        -680
+      ],
+      "id": "inbound-fetch-audio-b64",
+      "name": "Buscar Audio Base64 Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const raw = $json.base64 || $json.data?.base64 || '';\nconst clean = String(raw).replace(/^data:[^;]+;base64,/, '').trim();\nreturn {\n  json: {\n    hasBase64: Boolean(clean),\n    audioBase64: clean\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        -680
+      ],
+      "id": "inbound-norm-audio-b64",
+      "name": "Normalizar Audio Base64"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasBase64 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        -680
+      ],
+      "id": "inbound-if-got-b64",
+      "name": "Conseguiu Audio Base64?"
     },
     {
       "parameters": {
         "operation": "toBinary",
         "sourceProperty": "audioBase64",
         "options": {
-          "mimeType": "audio/mpeg"
+          "fileName": "audio.ogg",
+          "mimeType": "audio/ogg"
         }
       },
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1.1,
       "position": [
-        1040,
-        -420
+        1120,
+        -480
       ],
       "id": "inbound-convert-audio",
       "name": "Converter Áudio para Binário"
     },
     {
       "parameters": {
-        "resource": "audio",
-        "modelId": {
-          "__rl": true,
-          "value": "models/gemini-2.5-flash",
-          "mode": "list",
-          "cachedResultName": "models/gemini-2.5-flash"
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Preparar Audio Base64').item.json.groqApiKey }}"
+            }
+          ]
         },
-        "inputType": "binary",
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.googleGemini",
-      "typeVersion": 1,
-      "position": [
-        1260,
-        -420
-      ],
-      "id": "inbound-gemini-transcribe",
-      "name": "Transcrever Áudio com Gemini",
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "googlePalmApi": {
-          "id": "a8AUd42DbQPhJ2EY",
-          "name": "GEMINI_API"
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "parameterType": "formData",
+              "name": "model",
+              "value": "whisper-large-v3-turbo"
+            },
+            {
+              "parameterType": "formData",
+              "name": "language",
+              "value": "pt"
+            },
+            {
+              "parameterType": "formData",
+              "name": "response_format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
         }
-      }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        -480
+      ],
+      "id": "inbound-groq-transcribe",
+      "name": "Transcrever Audio Groq",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const meta = $('Extrair Metadados').item.json;\nconst loja = $('Identificar Loja').item.json;\n\n// Se veio transcrição do Gemini, usa ela\nlet conteudoFinal = meta.conteudo;\nif ($input.item.json?.content?.parts?.[0]?.text) {\n  conteudoFinal = $input.item.json.content.parts[0].text.trim();\n}\n\nlet dadosAds = meta.dadosAds || {};\nlet isAd = Boolean(meta.isAd && (dadosAds.adId || dadosAds.adTitulo || dadosAds.adTema));\nlet origem = meta.origem || 'organico';\nlet adId = dadosAds.adId || '';\nlet adTitulo = dadosAds.adTitulo || '';\nlet adTema = dadosAds.adTema || '';\nlet adCanal = dadosAds.canal || 'instagram';\nlet sourceUrl = dadosAds.sourceUrl || '';\nlet mediaUrl = dadosAds.mediaUrl || meta.midiaUrl || '';\nlet ctwaClid = dadosAds.ctwaClid || '';\n\n// Funcao de normalizacao rigorosa: sem acentos, sem pontuacao, maiusculas\nconst normalizeText = (txt) => {\n  return String(txt || '')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-zA-Z0-9\\s]/g, ' ')\n    .toUpperCase()\n    .replace(/\\s+/g, ' ')\n    .trim();\n};\n\n// Prioridade 2: Se NAO for Meta Ads e for inbound, verifica palavras-chave Google Ads da loja ou sinais automáticos de Google Ads\nif (!isAd && meta.direcao === 'inbound') {\n  const lojaConfig = loja.config_json || {};\n  const rawKeywords = String(lojaConfig.google_ads_keywords || '').trim();\n  const normalizedConteudo = normalizeText(conteudoFinal);\n  const rawLower = String(conteudoFinal || '').toLowerCase();\n  \n  if (rawKeywords) {\n    const keywordsList = rawKeywords\n      .split(',')\n      .map(k => k.trim())\n      .filter(Boolean);\n\n    for (const kw of keywordsList) {\n      const cleanKw = normalizeText(kw);\n      if (cleanKw.length >= 2 && normalizedConteudo.includes(cleanKw)) {\n        isAd = true;\n        origem = 'google_ads';\n        adCanal = 'google';\n        adId = 'google_' + cleanKw.replace(/\\s+/g, '_');\n        adTitulo = kw.trim();\n        adTema = 'Anúncio Google via palavra-chave/cupom: ' + kw.trim();\n        sourceUrl = '';\n        mediaUrl = '';\n        dadosAds = {\n          isAd: true,\n          canal: 'google',\n          conversaoOrigem: 'google_keywords',\n          adId: adId,\n          adTitulo: adTitulo,\n          adTema: adTema,\n          termoMatch: kw.trim(),\n          sourceUrl: '',\n          mediaUrl: ''\n        };\n        break;\n      }\n    }\n  }\n\n  // Fallback automático para links/frases comuns de Google Ads quando não há keyword específica\n  if (!isAd && (rawLower.includes('gclid=') || rawLower.includes('gad_source=') || rawLower.includes('utm_source=google') || normalizedConteudo.includes('VIM PELO GOOGLE') || normalizedConteudo.includes('ACHEI NO GOOGLE') || normalizedConteudo.includes('VI NO GOOGLE') || normalizedConteudo.includes('ENCONTREI NO GOOGLE'))) {\n    isAd = true;\n    origem = 'google_ads';\n    adCanal = 'google';\n    adId = 'google_auto';\n    adTitulo = 'Google Ads (Detecção Automática)';\n    adTema = 'Lead originado de busca/anúncio Google';\n    dadosAds = {\n      isAd: true,\n      canal: 'google',\n      conversaoOrigem: 'google_auto_detect',\n      adId: adId,\n      adTitulo: adTitulo,\n      adTema: adTema,\n      sourceUrl: '',\n      mediaUrl: ''\n    };\n  }\n}\n\nreturn {\n  json: {\n    loja_id: loja.id,\n    loja_nome: loja.nome,\n    cliente_nome: meta.direcao === 'outbound' ? '' : (meta.clientName || 'Contato WhatsApp'),\n    cliente_whatsapp: meta.clientPhone,\n    origem: origem,\n    is_ad: isAd,\n    ad_id: adId,\n    ad_titulo: adTitulo,\n    ad_tema: adTema,\n    ad_canal: adCanal,\n    source_url: sourceUrl,\n    media_url: mediaUrl,\n    ctwa_clid: ctwaClid,\n    dadosAds: dadosAds,\n    message_id: meta.messageId,\n    direcao: meta.direcao,\n    tipo: meta.tipo,\n    conteudo: conteudoFinal,\n    midia_url: meta.midiaUrl,\n    timestamp_mensagem: meta.timestamp_mensagem,\n    timestamp_seconds: meta.timestamp_seconds,\n    configs: meta.configs || {}\n  }\n};\n"
+        "jsCode": "const meta = $('Extrair Metadados').item.json;\nconst loja = $('Identificar Loja').item.json;\n\n// Se veio transcrição do Groq (ou Gemini), usa ela\nlet conteudoFinal = meta.conteudo;\nconst transcribedText = $input.item.json?.text || $input.item.json?.content?.parts?.[0]?.text || '';\nif (transcribedText && String(transcribedText).trim()) {\n  conteudoFinal = String(transcribedText).trim();\n}\n\nlet dadosAds = meta.dadosAds || {};\nlet isAd = Boolean(meta.isAd && (dadosAds.adId || dadosAds.adTitulo || dadosAds.adTema));\nlet origem = meta.origem || 'organico';\nlet adId = dadosAds.adId || '';\nlet adTitulo = dadosAds.adTitulo || '';\nlet adTema = dadosAds.adTema || '';\nlet adCanal = dadosAds.canal || 'instagram';\nlet sourceUrl = dadosAds.sourceUrl || '';\nlet mediaUrl = dadosAds.mediaUrl || meta.midiaUrl || '';\nlet ctwaClid = dadosAds.ctwaClid || '';\n\n// Funcao de normalizacao rigorosa: sem acentos, sem pontuacao, maiusculas\nconst normalizeText = (txt) => {\n  return String(txt || '')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-zA-Z0-9\\s]/g, ' ')\n    .toUpperCase()\n    .replace(/\\s+/g, ' ')\n    .trim();\n};\n\n// Prioridade 2: Se NAO for Meta Ads e for inbound, verifica palavras-chave Google Ads da loja ou sinais automáticos de Google Ads\nif (!isAd && meta.direcao === 'inbound') {\n  const lojaConfig = loja.config_json || {};\n  const rawKeywords = String(lojaConfig.google_ads_keywords || '').trim();\n  const normalizedConteudo = normalizeText(conteudoFinal);\n  const rawLower = String(conteudoFinal || '').toLowerCase();\n  \n  if (rawKeywords) {\n    const keywordsList = rawKeywords\n      .split(',')\n      .map(k => k.trim())\n      .filter(Boolean);\n\n    for (const kw of keywordsList) {\n      const cleanKw = normalizeText(kw);\n      if (cleanKw.length >= 2 && normalizedConteudo.includes(cleanKw)) {\n        isAd = true;\n        origem = 'google_ads';\n        adCanal = 'google';\n        adId = 'google_' + cleanKw.replace(/\\s+/g, '_');\n        adTitulo = kw.trim();\n        adTema = 'Anúncio Google via palavra-chave/cupom: ' + kw.trim();\n        sourceUrl = '';\n        mediaUrl = '';\n        dadosAds = {\n          isAd: true,\n          canal: 'google',\n          conversaoOrigem: 'google_keywords',\n          adId: adId,\n          adTitulo: adTitulo,\n          adTema: adTema,\n          termoMatch: kw.trim(),\n          sourceUrl: '',\n          mediaUrl: ''\n        };\n        break;\n      }\n    }\n  }\n\n  // Fallback automático para links/frases comuns de Google Ads quando não há keyword específica\n  if (!isAd && (rawLower.includes('gclid=') || rawLower.includes('gad_source=') || rawLower.includes('utm_source=google') || normalizedConteudo.includes('VIM PELO GOOGLE') || normalizedConteudo.includes('ACHEI NO GOOGLE') || normalizedConteudo.includes('VI NO GOOGLE') || normalizedConteudo.includes('ENCONTREI NO GOOGLE'))) {\n    isAd = true;\n    origem = 'google_ads';\n    adCanal = 'google';\n    adId = 'google_auto';\n    adTitulo = 'Google Ads (Detecção Automática)';\n    adTema = 'Lead originado de busca/anúncio Google';\n    dadosAds = {\n      isAd: true,\n      canal: 'google',\n      conversaoOrigem: 'google_auto_detect',\n      adId: adId,\n      adTitulo: adTitulo,\n      adTema: adTema,\n      sourceUrl: '',\n      mediaUrl: ''\n    };\n  }\n}\n\nreturn {\n  json: {\n    loja_id: loja.id,\n    loja_nome: loja.nome,\n    cliente_nome: meta.direcao === 'outbound' ? '' : (meta.clientName || 'Contato WhatsApp'),\n    cliente_whatsapp: meta.clientPhone,\n    origem: origem,\n    is_ad: isAd,\n    ad_id: adId,\n    ad_titulo: adTitulo,\n    ad_tema: adTema,\n    ad_canal: adCanal,\n    source_url: sourceUrl,\n    media_url: mediaUrl,\n    ctwa_clid: ctwaClid,\n    dadosAds: dadosAds,\n    message_id: meta.messageId,\n    direcao: meta.direcao,\n    tipo: meta.tipo,\n    conteudo: conteudoFinal,\n    midia_url: meta.midiaUrl,\n    timestamp_mensagem: meta.timestamp_mensagem,\n    timestamp_seconds: meta.timestamp_seconds,\n    configs: meta.configs || {}\n  }\n};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -641,7 +789,7 @@
       "main": [
         [
           {
-            "node": "É Áudio com Base64?",
+            "node": "É Áudio?",
             "type": "main",
             "index": 0
           }
@@ -655,7 +803,94 @@
         ]
       ]
     },
-    "É Áudio com Base64?": {
+    "É Áudio?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Audio Base64",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Dados Persistência",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Audio Base64": {
+      "main": [
+        [
+          {
+            "node": "Pode Transcrever?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pode Transcrever?": {
+      "main": [
+        [
+          {
+            "node": "Já tem Base64?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Dados Persistência",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Já tem Base64?": {
+      "main": [
+        [
+          {
+            "node": "Converter Áudio para Binário",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Audio Base64 Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Audio Base64 Evolution": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Audio Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Audio Base64": {
+      "main": [
+        [
+          {
+            "node": "Conseguiu Audio Base64?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conseguiu Audio Base64?": {
       "main": [
         [
           {
@@ -677,14 +912,14 @@
       "main": [
         [
           {
-            "node": "Transcrever Áudio com Gemini",
+            "node": "Transcrever Audio Groq",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Transcrever Áudio com Gemini": {
+    "Transcrever Audio Groq": {
       "main": [
         [
           {
@@ -814,6 +1049,7 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 60
   }
 }

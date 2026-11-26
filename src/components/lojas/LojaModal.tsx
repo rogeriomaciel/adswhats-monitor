@@ -277,20 +277,34 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
 
   const handleDisconnect = async () => {
     if (!loja?.id) return;
-    if (!confirm("Deseja realmente desconectar esta instância do WhatsApp?")) return;
+    if (!confirm("Deseja realmente desconectar, destruir a instância atual e criar uma nova na Evolution API?")) return;
 
+    stopPolling();
     setIsEvoLoading(true);
-    const res = await callEvolutionApi(loja.id, "LOGOUT");
-    setIsEvoLoading(false);
+    setEvoQrCode(null);
+    setEvoOwnerNumber(null);
+    toast.loading("Destruindo instância antiga e criando nova...", { id: "evo-disconnect-reset" });
 
-    if (res.ok) {
-      setEvoStatus("close");
-      setEvoQrCode(null);
-      setEvoOwnerNumber(null);
-      toast.success("WhatsApp desconectado.");
-      onSaved();
-    } else {
-      toast.error(res.message || "Erro ao desconectar instância.");
+    try {
+      const res = await callEvolutionApi(loja.id, "RESET");
+      if (res.ok) {
+        onSaved();
+        if (res.base64) {
+          setEvoQrCode(res.base64);
+          setEvoStatus("connecting");
+          startQrPolling(loja.id);
+          toast.success("Instância destruída e recriada! Novo QR Code pronto para leitura.", { id: "evo-disconnect-reset" });
+        } else {
+          setEvoStatus("close");
+          toast.success("Instância destruída e recriada com sucesso.", { id: "evo-disconnect-reset" });
+        }
+      } else {
+        toast.error(res.message || "Erro ao recriar instância na Evolution API.", { id: "evo-disconnect-reset" });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Erro de conexão ao recriar instância.", { id: "evo-disconnect-reset" });
+    } finally {
+      setIsEvoLoading(false);
     }
   };
 

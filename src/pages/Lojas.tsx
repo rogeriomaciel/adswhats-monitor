@@ -31,6 +31,9 @@ import {
   Trash2,
   RotateCcw,
   AlertTriangle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,6 +55,14 @@ export default function LojasPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    Online: true,
+    Conectando: true,
+    Offline: true,
+    Pausada: false,
+    Excluídas: true,
+  });
+  const [groupPages, setGroupPages] = useState<Record<string, number>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLoja, setSelectedLoja] = useState<Loja | null>(null);
   const [modalTab, setModalTab] = useState<"geral" | "social" | "localizacao" | "evolution">("geral");
@@ -94,6 +105,59 @@ export default function LojasPage() {
     const email = loja.config_json?.dadosDaLoja?.email?.toLowerCase() || "";
     return nome.includes(term) || whatsapp.includes(term) || email.includes(term);
   });
+
+  useEffect(() => {
+    setGroupPages({});
+  }, [searchTerm, viewMode, showDeleted]);
+
+  const statusGroups = showDeleted
+    ? [
+      {
+        key: "Excluídas",
+        label: "Lojas Excluídas",
+        dotClass: "bg-destructive",
+        badgeClass: "bg-destructive/10 text-destructive border-destructive/20",
+        items: filteredLojas,
+      },
+    ]
+    : [
+      {
+        key: "Online",
+        label: "Online (Conectadas)",
+        dotClass: "bg-emerald-500",
+        badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+        items: filteredLojas.filter((l) => getLojaStatusLabel(l) === "Online"),
+      },
+      {
+        key: "Conectando",
+        label: "Conectando",
+        dotClass: "bg-amber-500",
+        badgeClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+        items: filteredLojas.filter((l) => getLojaStatusLabel(l) === "Conectando"),
+      },
+      {
+        key: "Offline",
+        label: "Offline (Desconectadas)",
+        dotClass: "bg-rose-500",
+        badgeClass: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+        items: filteredLojas.filter((l) => getLojaStatusLabel(l) === "Offline"),
+      },
+      {
+        key: "Pausada",
+        label: "Pausadas / Inativas",
+        dotClass: "bg-muted-foreground",
+        badgeClass: "bg-muted text-muted-foreground border-border",
+        items: filteredLojas.filter((l) => getLojaStatusLabel(l) === "Pausada"),
+      },
+    ].filter((g) => g.items.length > 0);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const setGroupPage = (key: string, page: number) => {
+    setGroupPages((prev) => ({ ...prev, [key]: page }));
+  };
 
   const totalLojas = lojas.filter((l) => !l.deleted_at).length;
   const lojasAtivas = lojas.filter((l) => l.ativo && !l.deleted_at).length;
@@ -216,11 +280,10 @@ export default function LojasPage() {
                 <button
                   type="button"
                   onClick={() => setShowDeleted(false)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                    !showDeleted
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${!showDeleted
                       ? "bg-primary text-primary-foreground shadow-2xs"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
+                    }`}
                 >
                   <Building2 className="w-3.5 h-3.5" />
                   <span>Ativas ({lojasAtivas})</span>
@@ -228,11 +291,10 @@ export default function LojasPage() {
                 <button
                   type="button"
                   onClick={() => setShowDeleted(true)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                    showDeleted
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${showDeleted
                       ? "bg-destructive text-destructive-foreground shadow-2xs"
                       : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  }`}
+                    }`}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Excluídas ({lojasExcluidas})</span>
@@ -324,11 +386,10 @@ export default function LojasPage() {
             <button
               type="button"
               onClick={() => setViewMode("table")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-                viewMode === "table"
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${viewMode === "table"
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
+                }`}
               title="Visualização em Tabela"
             >
               <List className="w-3.5 h-3.5" />
@@ -337,11 +398,10 @@ export default function LojasPage() {
             <button
               type="button"
               onClick={() => setViewMode("cards")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-                viewMode === "cards"
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${viewMode === "cards"
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
+                }`}
               title="Visualização em Cards"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
@@ -381,9 +441,41 @@ export default function LojasPage() {
               </button>
             )}
           </div>
-        ) : viewMode === "table" ? (
-          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+        ) : (
+          <div className="space-y-4">
+            {statusGroups.map((group) => {
+              const isExpanded = expandedGroups[group.key] ?? true;
+              const pageSize = viewMode === "table" ? 10 : 9;
+              const totalItems = group.items.length;
+              const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+              const currentPage = Math.min(groupPages[group.key] || 0, totalPages - 1);
+              const pagedItems = group.items.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+
+              return (
+                <section key={group.key} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                  {/* Cabeçalho Sanfonado do Grupo */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.key)}
+                    className="w-full px-4 py-3.5 flex items-center justify-between gap-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${group.dotClass}`} />
+                      <h2 className="text-sm font-bold font-display text-foreground">{group.label}</h2>
+                      <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${group.badgeClass}`}>
+                        {totalItems}
+                      </span>
+                    </div>
+                    <ChevronDown
+                      className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""
+                        }`}
+                    />
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-border">
+                      {viewMode === "table" ? (
+                        <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/40 border-b border-border text-muted-foreground font-semibold">
                   <tr>
@@ -397,7 +489,7 @@ export default function LojasPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredLojas.map((loja) => {
+                  {pagedItems.map((loja) => {
                     const dados = loja.config_json?.dadosDaLoja;
                     return (
                       <tr key={loja.id} className="hover:bg-muted/30 transition-colors">
@@ -427,338 +519,377 @@ export default function LojasPage() {
                           </div>
                         </td>
 
-                        <td className="py-3 px-4 font-mono">
-                          {loja.whatsapp_loja ? (
-                            <span className="text-foreground">{formatPhone(loja.whatsapp_loja)}</span>
-                          ) : (
-                            <span className="italic text-amber-500/90 dark:text-amber-400 font-sans text-[11px] font-medium">
-                              Aguardando conexão
-                            </span>
-                          )}
-                        </td>
+                                    <td className="py-3 px-4 font-mono">
+                                      {loja.whatsapp_loja ? (
+                                        <span className="text-foreground">{formatPhone(loja.whatsapp_loja)}</span>
+                                      ) : (
+                                        <span className="italic text-amber-500/90 dark:text-amber-400 font-sans text-[11px] font-medium">
+                                          Aguardando conexão
+                                        </span>
+                                      )}
+                                    </td>
 
-                        <td className="py-3 px-4 max-w-xs">
-                          <div className="space-y-1">
-                            {dados?.endereco && (
-                              <p className="truncate text-[11px] text-muted-foreground flex items-center gap-1" title={dados.endereco}>
-                                <MapPin className="w-3 h-3 shrink-0" />
-                                <span className="truncate">{dados.endereco}</span>
-                              </p>
-                            )}
-                            <div className="flex items-center gap-2.5 text-[11px]">
-                              {dados?.site && (
-                                <a
-                                  href={dados.site}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-primary hover:underline flex items-center gap-1"
-                                >
-                                  <Globe className="w-3 h-3" />
-                                  Site
-                                </a>
-                              )}
-                              {dados?.instagram && (
-                                <a
-                                  href={
-                                    dados.instagram.startsWith("http")
-                                      ? dados.instagram
-                                      : `https://instagram.com/${dados.instagram.replace("@", "")}`
-                                  }
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-pink-500 hover:underline flex items-center gap-1"
-                                >
-                                  <Instagram className="w-3 h-3" />
-                                  Instagram
-                                </a>
-                              )}
-                              {dados?.facebook && (
-                                <a
-                                  href={dados.facebook}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-500 hover:underline flex items-center gap-1"
-                                >
-                                  <Facebook className="w-3 h-3" />
-                                  Facebook
-                                </a>
-                              )}
-                              {!dados?.endereco && !dados?.site && !dados?.instagram && !dados?.facebook && (
-                                <span className="text-muted-foreground/60">—</span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
+                                    <td className="py-3 px-4 max-w-xs">
+                                      <div className="space-y-1">
+                                        {dados?.endereco && (
+                                          <p className="truncate text-[11px] text-muted-foreground flex items-center gap-1" title={dados.endereco}>
+                                            <MapPin className="w-3 h-3 shrink-0" />
+                                            <span className="truncate">{dados.endereco}</span>
+                                          </p>
+                                        )}
+                                        <div className="flex items-center gap-2.5 text-[11px]">
+                                          {dados?.site && (
+                                            <a
+                                              href={dados.site}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-primary hover:underline flex items-center gap-1"
+                                            >
+                                              <Globe className="w-3 h-3" />
+                                              Site
+                                            </a>
+                                          )}
+                                          {dados?.instagram && (
+                                            <a
+                                              href={
+                                                dados.instagram.startsWith("http")
+                                                  ? dados.instagram
+                                                  : `https://instagram.com/${dados.instagram.replace("@", "")}`
+                                              }
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-pink-500 hover:underline flex items-center gap-1"
+                                            >
+                                              <Instagram className="w-3 h-3" />
+                                              Instagram
+                                            </a>
+                                          )}
+                                          {dados?.facebook && (
+                                            <a
+                                              href={dados.facebook}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-blue-500 hover:underline flex items-center gap-1"
+                                            >
+                                              <Facebook className="w-3 h-3" />
+                                              Facebook
+                                            </a>
+                                          )}
+                                          {!dados?.endereco && !dados?.site && !dados?.instagram && !dados?.facebook && (
+                                            <span className="text-muted-foreground/60">—</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </td>
 
-                        <td className="py-3 px-4 text-center">
-                          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
-                            {loja.total_contatos || 0}
-                          </span>
-                        </td>
+                                    <td className="py-3 px-4 text-center">
+                                      <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
+                                        {loja.total_contatos || 0}
+                                      </span>
+                                    </td>
 
-                        <td className="py-3 px-4 text-center">
-                          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
-                            {loja.total_mensagens || 0}
-                          </span>
-                        </td>
+                                    <td className="py-3 px-4 text-center">
+                                      <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-muted">
+                                        {loja.total_mensagens || 0}
+                                      </span>
+                                    </td>
 
-                        <td className="py-3 px-4 text-center">
-                          {loja.deleted_at ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-destructive/10 text-destructive border-destructive/20">
-                              Excluída
-                            </span>
-                          ) : (
-                            (() => {
-                              const statusLabel = getLojaStatusLabel(loja);
-                              const badgeClass =
-                                statusLabel === "Online"
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                  : statusLabel === "Conectando"
-                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                                  : statusLabel === "Offline"
-                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                                  : "bg-muted text-muted-foreground border-border";
-                              return (
-                                <span
-                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeClass}`}
-                                >
-                                  {statusLabel}
-                                </span>
-                              );
-                            })()
-                          )}
-                        </td>
+                                    <td className="py-3 px-4 text-center">
+                                      {loja.deleted_at ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-destructive/10 text-destructive border-destructive/20">
+                                          Excluída
+                                        </span>
+                                      ) : (
+                                        (() => {
+                                          const statusLabel = getLojaStatusLabel(loja);
+                                          const badgeClass =
+                                            statusLabel === "Online"
+                                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                              : statusLabel === "Conectando"
+                                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                                : statusLabel === "Offline"
+                                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                                  : "bg-muted text-muted-foreground border-border";
+                                          return (
+                                            <span
+                                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeClass}`}
+                                            >
+                                              {statusLabel}
+                                            </span>
+                                          );
+                                        })()
+                                      )}
+                                    </td>
 
-                        <td className="py-3 px-4 text-right">
-                          <div className="inline-flex items-center justify-end gap-1.5">
-                            {loja.deleted_at ? (
-                              isRootUser && (
-                                <button
-                                  onClick={() => handleRestoreLoja(loja)}
-                                  className="py-1.5 px-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
-                                  title="Restaurar esta loja no painel"
-                                >
-                                  <RotateCcw className="w-3.5 h-3.5" />
-                                  <span>Restaurar</span>
-                                </button>
-                              )
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleConectarWhatsApp(loja)}
-                                  className="py-1.5 px-2.5 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
-                                  title="Gerenciar conexão do WhatsApp"
-                                >
-                                  <QrCode className="w-3.5 h-3.5" />
-                                  <span className="hidden lg:inline">WhatsApp</span>
-                                </button>
+                                    <td className="py-3 px-4 text-right">
+                                      <div className="inline-flex items-center justify-end gap-1.5">
+                                        {loja.deleted_at ? (
+                                          isRootUser && (
+                                            <button
+                                              onClick={() => handleRestoreLoja(loja)}
+                                              className="py-1.5 px-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                                              title="Restaurar esta loja no painel"
+                                            >
+                                              <RotateCcw className="w-3.5 h-3.5" />
+                                              <span>Restaurar</span>
+                                            </button>
+                                          )
+                                        ) : (
+                                          <>
+                                            <button
+                                              onClick={() => handleConectarWhatsApp(loja)}
+                                              className="py-1.5 px-2.5 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
+                                              title="Gerenciar conexão do WhatsApp"
+                                            >
+                                              <QrCode className="w-3.5 h-3.5" />
+                                              <span className="hidden lg:inline">WhatsApp</span>
+                                            </button>
 
-                                <button
-                                  onClick={() => handleCopiarLinkLojista(loja)}
-                                  className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-colors"
-                                  title="Copiar link público para o lojista conectar WhatsApp"
-                                >
-                                  <Share2 className="w-3.5 h-3.5" />
-                                </button>
+                                            <button
+                                              onClick={() => handleCopiarLinkLojista(loja)}
+                                              className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-colors"
+                                              title="Copiar link público para o lojista conectar WhatsApp"
+                                            >
+                                              <Share2 className="w-3.5 h-3.5" />
+                                            </button>
 
-                                <button
-                                  onClick={() => handleEditarLoja(loja)}
-                                  className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                                  title="Editar Loja"
-                                >
-                                  <Settings className="w-3.5 h-3.5" />
-                                </button>
+                                            <button
+                                              onClick={() => handleEditarLoja(loja)}
+                                              className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                              title="Editar Loja"
+                                            >
+                                              <Settings className="w-3.5 h-3.5" />
+                                            </button>
 
-                                {isAdmin && (
-                                  <button
-                                    onClick={() => handleDeleteLoja(loja)}
-                                    className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
-                                    title="Excluir Loja (Ocultar do Painel e Desconectar)"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredLojas.map((loja) => {
-              const dados = loja.config_json?.dadosDaLoja;
-              const evo = loja.config_json?.evolutionapi;
-              const instanceName = evo?.instanceName || `loja-${loja.id}`;
-
-              return (
-                <div
-                  key={loja.id}
-                  className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
-                >
-                  <div className="space-y-4">
-                    {/* Top line: Name + Status */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm">
-                          {loja.nome?.substring(0, 2).toUpperCase() || "LJ"}
+                                            {isAdmin && (
+                                              <button
+                                                onClick={() => handleDeleteLoja(loja)}
+                                                className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
+                                                title="Excluir Loja (Ocultar do Painel e Desconectar)"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-bold text-foreground font-display leading-tight">
-                              {loja.nome}
-                            </h3>
-                            <span className="text-[10px] font-mono text-muted-foreground">#{loja.id}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <Phone className="w-3 h-3" />
-                            {loja.whatsapp_loja ? (
-                              formatPhone(loja.whatsapp_loja)
-                            ) : (
-                              <span className="italic text-amber-500/90 dark:text-amber-400 font-medium">Aguardando conexão</span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      {loja.deleted_at ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 bg-destructive/10 text-destructive border-destructive/20">
-                          Excluída
-                        </span>
                       ) : (
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 ${
-                            loja.ativo
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                              : "bg-muted text-muted-foreground border-border"
-                          }`}
-                        >
-                          {loja.ativo ? "Ativa" : "Inativa"}
-                        </span>
+                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {pagedItems.map((loja) => {
+                            const dados = loja.config_json?.dadosDaLoja;
+                            const evo = loja.config_json?.evolutionapi;
+                            const instanceName = evo?.instanceName || `loja-${loja.id}`;
+
+                            return (
+                              <div
+                                key={loja.id}
+                                className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+                              >
+                                <div className="space-y-4">
+                                  {/* Top line: Name + Status */}
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm">
+                                        {loja.nome?.substring(0, 2).toUpperCase() || "LJ"}
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <h3 className="text-sm font-bold text-foreground font-display leading-tight">
+                                            {loja.nome}
+                                          </h3>
+                                          <span className="text-[10px] font-mono text-muted-foreground">#{loja.id}</span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                          <Phone className="w-3 h-3" />
+                                          {loja.whatsapp_loja ? (
+                                            formatPhone(loja.whatsapp_loja)
+                                          ) : (
+                                            <span className="italic text-amber-500/90 dark:text-amber-400 font-medium">Aguardando conexão</span>
+                                          )}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {loja.deleted_at ? (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 bg-destructive/10 text-destructive border-destructive/20">
+                                        Excluída
+                                      </span>
+                                    ) : (
+                                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 ${group.badgeClass}`}>
+                                        {getLojaStatusLabel(loja)}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Store Info Pills */}
+                                  <div className="space-y-2 text-xs text-muted-foreground pt-1 border-t border-border/60">
+                                    {dados?.endereco && (
+                                      <p className="truncate flex items-center gap-1.5 text-[11px]">
+                                        <MapPin className="w-3 h-3 shrink-0 text-muted-foreground" />
+                                        <span className="truncate">{dados.endereco}</span>
+                                      </p>
+                                    )}
+
+                                    <div className="flex items-center gap-3 text-[11px] pt-1">
+                                      {dados?.site && (
+                                        <a
+                                          href={dados.site}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline flex items-center gap-1"
+                                        >
+                                          <Globe className="w-3 h-3" />
+                                          Site
+                                        </a>
+                                      )}
+                                      {dados?.instagram && (
+                                        <a
+                                          href={dados.instagram.startsWith("http") ? dados.instagram : `https://instagram.com/${dados.instagram.replace("@", "")}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-pink-500 hover:underline flex items-center gap-1"
+                                        >
+                                          <Instagram className="w-3 h-3" />
+                                          Instagram
+                                        </a>
+                                      )}
+                                      {dados?.facebook && (
+                                        <a
+                                          href={dados.facebook}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-blue-500 hover:underline flex items-center gap-1"
+                                        >
+                                          <Facebook className="w-3 h-3" />
+                                          Facebook
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Stats Badge */}
+                                  <div className="grid grid-cols-2 gap-2 pt-2">
+                                    <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50 text-center">
+                                      <span className="text-[10px] text-muted-foreground block">Contatos</span>
+                                      <span className="text-xs font-bold text-foreground font-mono">
+                                        {loja.total_contatos || 0}
+                                      </span>
+                                    </div>
+                                    <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50 text-center">
+                                      <span className="text-[10px] text-muted-foreground block">Mensagens</span>
+                                      <span className="text-xs font-bold text-foreground font-mono">
+                                        {loja.total_mensagens || 0}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Card Bottom / Action Buttons */}
+                                <div className="pt-4 mt-4 border-t border-border flex items-center justify-between gap-2">
+                                  {loja.deleted_at ? (
+                                    isRootUser && (
+                                      <button
+                                        onClick={() => handleRestoreLoja(loja)}
+                                        className="w-full py-1.5 px-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                                        title="Restaurar esta loja no painel"
+                                      >
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        Restaurar Loja
+                                      </button>
+                                    )
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => handleConectarWhatsApp(loja)}
+                                        className="flex-1 py-1.5 px-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                                        title="Gerenciar conexão da Evolution API"
+                                      >
+                                        <QrCode className="w-3.5 h-3.5" />
+                                        Instância WhatsApp
+                                      </button>
+
+                                      <button
+                                        onClick={() => handleCopiarLinkLojista(loja)}
+                                        className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-colors"
+                                        title="Copiar link público para o lojista conectar WhatsApp"
+                                      >
+                                        <Share2 className="w-4 h-4" />
+                                      </button>
+
+                                      <button
+                                        onClick={() => handleEditarLoja(loja)}
+                                        className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                        title="Editar Loja"
+                                      >
+                                        <Settings className="w-4 h-4" />
+                                      </button>
+
+                                      {isAdmin && (
+                                        <button
+                                          onClick={() => handleDeleteLoja(loja)}
+                                          className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
+                                          title="Excluir Loja (Ocultar do Painel e Desconectar)"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Paginação do Grupo */}
+                      {totalPages > 1 && (
+                        <div className="px-4 py-2.5 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+                          <span className="text-muted-foreground">
+                            Mostrando{" "}
+                            <strong className="text-foreground">{currentPage * pageSize + 1}</strong>
+                            {" – "}
+                            <strong className="text-foreground">
+                              {Math.min((currentPage + 1) * pageSize, totalItems)}
+                            </strong>{" "}
+                            de <strong className="text-foreground">{totalItems}</strong>
+                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={currentPage === 0}
+                              onClick={() => setGroupPage(group.key, Math.max(0, currentPage - 1))}
+                              className="px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-40 disabled:pointer-events-none inline-flex items-center gap-1 transition-colors"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                              Anterior
+                            </button>
+                            <span className="text-[11px] font-mono text-muted-foreground px-2">
+                              {currentPage + 1} / {totalPages}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={currentPage + 1 >= totalPages}
+                              onClick={() => setGroupPage(group.key, Math.min(totalPages - 1, currentPage + 1))}
+                              className="px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-40 disabled:pointer-events-none inline-flex items-center gap-1 transition-colors"
+                            >
+                              Próxima
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
-
-                    {/* Store Info Pills */}
-                    <div className="space-y-2 text-xs text-muted-foreground pt-1 border-t border-border/60">
-                      {dados?.endereco && (
-                        <p className="truncate flex items-center gap-1.5 text-[11px]">
-                          <MapPin className="w-3 h-3 shrink-0 text-muted-foreground" />
-                          <span className="truncate">{dados.endereco}</span>
-                        </p>
-                      )}
-
-                      <div className="flex items-center gap-3 text-[11px] pt-1">
-                        {dados?.site && (
-                          <a
-                            href={dados.site}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline flex items-center gap-1"
-                          >
-                            <Globe className="w-3 h-3" />
-                            Site
-                          </a>
-                        )}
-                        {dados?.instagram && (
-                          <a
-                            href={dados.instagram.startsWith("http") ? dados.instagram : `https://instagram.com/${dados.instagram.replace("@", "")}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-pink-500 hover:underline flex items-center gap-1"
-                          >
-                            <Instagram className="w-3 h-3" />
-                            Instagram
-                          </a>
-                        )}
-                        {dados?.facebook && (
-                          <a
-                            href={dados.facebook}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-500 hover:underline flex items-center gap-1"
-                          >
-                            <Facebook className="w-3 h-3" />
-                            Facebook
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Stats Badge */}
-                    <div className="grid grid-cols-2 gap-2 pt-2">
-                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50 text-center">
-                        <span className="text-[10px] text-muted-foreground block">Contatos</span>
-                        <span className="text-xs font-bold text-foreground font-mono">
-                          {loja.total_contatos || 0}
-                        </span>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50 text-center">
-                        <span className="text-[10px] text-muted-foreground block">Mensagens</span>
-                        <span className="text-xs font-bold text-foreground font-mono">
-                          {loja.total_mensagens || 0}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card Bottom / Action Buttons */}
-                  <div className="pt-4 mt-4 border-t border-border flex items-center justify-between gap-2">
-                    {loja.deleted_at ? (
-                      isRootUser && (
-                        <button
-                          onClick={() => handleRestoreLoja(loja)}
-                          className="w-full py-1.5 px-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                          title="Restaurar esta loja no painel"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          Restaurar Loja
-                        </button>
-                      )
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => handleConectarWhatsApp(loja)}
-                          className="flex-1 py-1.5 px-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
-                          title="Gerenciar conexão da Evolution API"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                          Instância WhatsApp
-                        </button>
-
-                        <button
-                          onClick={() => handleCopiarLinkLojista(loja)}
-                          className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-colors"
-                          title="Copiar link público para o lojista conectar WhatsApp"
-                        >
-                          <Share2 className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => handleEditarLoja(loja)}
-                          className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                          title="Editar Loja"
-                        >
-                          <Settings className="w-4 h-4" />
-                        </button>
-
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDeleteLoja(loja)}
-                            className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
-                            title="Excluir Loja (Ocultar do Painel e Desconectar)"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
+                  )}
+                </section>
               );
             })}
           </div>

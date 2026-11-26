@@ -38,7 +38,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const startItem = $('Start').first().json || {};\nconst triggerData = startItem.body || startItem.payload || startItem || {};\nconst configs = startItem.configs || triggerData.configs || {};\nconst loja = $input.item.json || {};\nconst evoConfig = loja.config_json?.evolutionapi || {};\n\nconst defaultEvolutionKey = (configs.evolution_api_key || '').trim();\nconst defaultEvolutionUrl = (configs.evolution_api_url || '').replace(/\\/+$/, '');\n\nlet instanceName = (evoConfig.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = `loja-${loja.id}`;\n}\n\nconst apikey = (evoConfig.apikey || '').trim() || defaultEvolutionKey;\nlet apiUrl = (evoConfig.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nconst evolutionAction = (triggerData.evolutionAction || 'STATUS').toUpperCase();\nconst isReset = evolutionAction === 'RESET';\n\nif (!apiUrl || !instanceName || !apikey) {\n  return {\n    json: {\n      hasError: true,\n      error: 'Instância, chave ou URL da Evolution API não configurada na loja ou na tabela configs.'\n    }\n  };\n}\n\nlet webhookUrl = (evoConfig.webhookUrl || configs.evolution_webhook_url || loja.config_evo_webhook || '').trim();\nif (webhookUrl && !webhookUrl.includes('/app/')) {\n  webhookUrl = webhookUrl.replace('/adswhatsinbound', '/app/adswhatsinbound');\n}\n\nconst rawToken = (evoConfig.token || '').trim();\nconst instanceToken = rawToken || ('TOKEN-' + loja.id);\nconst webhookSecret = (configs.webhook_secret || loja.config_evo_secret || instanceToken || apikey || '').trim();\n\nconst createPayload = {\n  instanceName,\n  qrcode: true,\n  integration: 'WHATSAPP-BAILEYS',\n  token: instanceToken,\n  webhook: {\n    enabled: Boolean(webhookUrl),\n    url: webhookUrl,\n    headers: {\n      'x-webhook-secret': webhookSecret\n    },\n    byEvents: false,\n    base64: true,\n    events: [\n      'MESSAGES_UPSERT',\n      'CONNECTION_UPDATE'\n    ]\n  }\n};\n\nlet url = '';\nlet method = 'GET';\n\nif (evolutionAction === 'STATUS') {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n} else if (evolutionAction === 'CONNECT') {\n  url = `${apiUrl}/instance/connect/${instanceName}`;\n} else if (evolutionAction === 'LOGOUT') {\n  url = `${apiUrl}/instance/logout/${instanceName}`;\n  method = 'DELETE';\n} else if (evolutionAction === 'RESTART') {\n  url = `${apiUrl}/instance/restart/${instanceName}`;\n  method = 'POST';\n} else {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n}\n\nreturn {\n  json: {\n    hasError: false,\n    evolutionAction,\n    isReset,\n    url,\n    method,\n    apikey,\n    instanceName,\n    loja_id: loja.id,\n    logoutUrl: `${apiUrl}/instance/logout/${instanceName}`,\n    deleteUrl: `${apiUrl}/instance/delete/${instanceName}`,\n    createUrl: `${apiUrl}/instance/create`,\n    connectUrl: `${apiUrl}/instance/connect/${instanceName}`,\n    createPayload\n  }\n};"
+        "jsCode": "const startItem = $('Start').first().json || {};\nconst triggerData = startItem.body || startItem.payload || startItem || {};\nconst configs = startItem.configs || triggerData.configs || {};\nconst loja = $input.item.json || {};\nconst evoConfig = loja.config_json?.evolutionapi || {};\n\nconst defaultEvolutionKey = (configs.evolution_api_key || '').trim();\nconst defaultEvolutionUrl = (configs.evolution_api_url || '').replace(/\\/+$/, '');\n\nlet instanceName = (evoConfig.instanceName || '').trim();\nif (!instanceName || instanceName === 'loja-undefined' || instanceName === 'loja-null') {\n  instanceName = `loja-${loja.id}`;\n}\n\nconst apikey = (evoConfig.apikey || '').trim() || defaultEvolutionKey;\nlet apiUrl = (evoConfig.apiUrl || '').trim().replace(/\\/+$/, '');\nif (!apiUrl) {\n  apiUrl = defaultEvolutionUrl;\n}\n\nconst evolutionAction = (triggerData.evolutionAction || 'STATUS').toUpperCase();\nconst isReset = evolutionAction === 'RESET';\n\nif (!apiUrl || !instanceName || !apikey) {\n  return {\n    json: {\n      hasError: true,\n      error: 'Instância, chave ou URL da Evolution API não configurada na loja ou na tabela configs.'\n    }\n  };\n}\n\nlet webhookUrl = (evoConfig.webhookUrl || configs.evolution_webhook_url || loja.config_evo_webhook || '').trim();\nif (webhookUrl && !webhookUrl.includes('/app/')) {\n  webhookUrl = webhookUrl.replace('/adswhatsinbound', '/app/adswhatsinbound');\n}\n\nconst rawToken = (evoConfig.token || '').trim();\nconst instanceToken = rawToken || ('TOKEN-' + loja.id);\nconst webhookSecret = (configs.webhook_secret || loja.config_evo_secret || instanceToken || apikey || '').trim();\n\nconst createPayload = {\n  instanceName,\n  qrcode: true,\n  integration: 'WHATSAPP-BAILEYS',\n  groupsIgnore: true,\n  token: instanceToken,\n  webhook: {\n    enabled: Boolean(webhookUrl),\n    url: webhookUrl,\n    headers: {\n      'x-webhook-secret': webhookSecret\n    },\n    byEvents: false,\n    base64: true,\n    events: [\n      'MESSAGES_UPSERT',\n      'CONNECTION_UPDATE'\n    ]\n  }\n};\n\nconst fallbackInstanceName = `loja-${loja.id}-${Date.now().toString(36)}`;\nconst fallbackCreatePayload = {\n  ...createPayload,\n  instanceName: fallbackInstanceName\n};\n\nlet url = '';\nlet method = 'GET';\n\nif (evolutionAction === 'STATUS') {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n} else if (evolutionAction === 'CONNECT') {\n  url = `${apiUrl}/instance/connect/${instanceName}`;\n} else if (evolutionAction === 'LOGOUT') {\n  url = `${apiUrl}/instance/logout/${instanceName}`;\n  method = 'DELETE';\n} else if (evolutionAction === 'RESTART') {\n  url = `${apiUrl}/instance/restart/${instanceName}`;\n  method = 'POST';\n} else {\n  url = `${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`;\n}\n\nreturn {\n  json: {\n    hasError: false,\n    evolutionAction,\n    isReset,\n    url,\n    method,\n    apikey,\n    instanceName,\n    fallbackInstanceName,\n    loja_id: loja.id,\n    logoutUrl: `${apiUrl}/instance/logout/${instanceName}`,\n    restartUrl: `${apiUrl}/instance/restart/${instanceName}`,\n    deleteUrl: `${apiUrl}/instance/delete/${instanceName}`,\n    createUrl: `${apiUrl}/instance/create`,\n    connectUrl: `${apiUrl}/instance/connect/${instanceName}`,\n    fallbackConnectUrl: `${apiUrl}/instance/connect/${fallbackInstanceName}`,\n    createPayload,\n    fallbackCreatePayload\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -105,14 +105,53 @@
     },
     {
       "parameters": {
-        "method": "DELETE",
-        "url": "={{ $json.logoutUrl }}",
+        "method": "POST",
+        "url": "={{ $('Preparar Requisicao').first().json.restartUrl }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $json.apikey }}"
+              "value": "={{ $('Preparar Requisicao').first().json.apikey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        -60
+      ],
+      "id": "evo-reset-restart",
+      "name": "Reset 0 Restart Evolution",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "await new Promise(r => setTimeout(r, 4000));\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        350,
+        -60
+      ],
+      "id": "evo-reset-wait-restart",
+      "name": "Reset Wait Restart (4s)"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $('Preparar Requisicao').first().json.logoutUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Preparar Requisicao').first().json.apikey }}"
             }
           ]
         },
@@ -127,6 +166,20 @@
       "id": "evo-reset-logout",
       "name": "Reset 1 Logout Evolution",
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "await new Promise(r => setTimeout(r, 2000));\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        510,
+        -60
+      ],
+      "id": "evo-reset-wait-logout",
+      "name": "Reset Wait Logout (2s)"
     },
     {
       "parameters": {
@@ -155,6 +208,20 @@
     },
     {
       "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prep = $('Preparar Requisicao').first().json || {};\nconst delRes = $input.first()?.json || {};\nconst delErr = delRes.error || null;\nconst isNotFound = delErr && (Number(delErr.status) === 404 || String(delErr.message || '').includes('404'));\nconst deleteFailed = Boolean(delErr && !isNotFound);\n\nreturn {\n  json: {\n    rotated: deleteFailed,\n    instanceName: deleteFailed ? prep.fallbackInstanceName : prep.instanceName,\n    createPayload: deleteFailed ? prep.fallbackCreatePayload : prep.createPayload,\n    connectUrl: deleteFailed ? prep.fallbackConnectUrl : prep.connectUrl\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        730,
+        -60
+      ],
+      "id": "evo-reset-resolve-delete",
+      "name": "Resolver Pos Delete"
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "={{ $('Preparar Requisicao').first().json.createUrl }}",
         "sendHeaders": true,
@@ -172,7 +239,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('Preparar Requisicao').first().json.createPayload) }}",
+        "jsonBody": "={{ JSON.stringify($('Resolver Pos Delete').first().json.createPayload) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -188,7 +255,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $('Preparar Requisicao').first().json.connectUrl }}",
+        "url": "={{ $('Resolver Pos Delete').first().json.connectUrl }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -237,8 +304,8 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const res = $input.item.json;\nconst item = Array.isArray(res) ? (res[0] || {}) : res;\nconst loja = $('Buscar Loja').first().json || {};\n\nconst rawOwner = item?.ownerJid || item?.owner || item?.number || item?.instance?.ownerJid || item?.instance?.owner || item?.instance?.number || item?.profile?.id || '';\nconst cleanPhone = rawOwner ? String(rawOwner).split('@')[0].split(':')[0].replace(/\\D/g, '') : '';\nconst formattedPhone = cleanPhone ? (cleanPhone.startsWith('55') ? cleanPhone : ('55' + cleanPhone)) : '';\n\nconst rawState = item?.connectionStatus || item?.instance?.state || item?.instance?.status || item?.status || item?.state || '';\nconst base64 = item?.base64 || item?.qrcode?.base64 || null;\nconst code = item?.code || item?.qrcode?.code || null;\nconst profilePicUrl = item?.profilePicUrl || item?.instance?.profilePicUrl || null;\n\n// Sanitiza o retorno para expor apenas dados seguros de estado e QR Code, nunca tokens ou apikeys\nconst safeData = {\n  connectionStatus: rawState,\n  state: rawState,\n  base64,\n  code,\n  number: formattedPhone || null,\n  profilePicUrl\n};\n\n// Só tenta atualizar o banco se a loja não tiver telefone cadastrado ainda\nconst currentPhone = loja.whatsapp_loja || '';\nconst shouldUpdate = Boolean(formattedPhone && loja.id && !currentPhone);\n\nreturn {\n  json: {\n    ok: true,\n    data: safeData,\n    ownerPhone: formattedPhone,\n    number: formattedPhone,\n    loja_id: loja.id,\n    shouldUpdate\n  }\n};"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prep = $('Preparar Requisicao').first().json || {};\nconst loja = $('Buscar Loja').first().json || {};\nconst allItems = $input.all() || [];\n\nlet resolved = null;\nif (prep.isReset) {\n  try {\n    resolved = $('Resolver Pos Delete').first().json || null;\n  } catch {}\n}\nconst targetName = String(resolved?.instanceName || prep.instanceName || '').trim();\nconst rotated = Boolean(resolved?.rotated);\n\nif (prep.isReset) {\n  let createErr = null;\n  try {\n    createErr = $('Reset 3 Create Evolution').first()?.json?.error || null;\n  } catch {}\n  if (createErr) {\n    return {\n      json: {\n        ok: false,\n        message: `Não foi possível destruir e recriar a instância na Evolution API (${createErr.message || 'instância presa'}). Reinicie a Evolution API ou remova manualmente.`,\n        data: {},\n        ownerPhone: '',\n        number: '',\n        loja_id: loja.id,\n        activeInstanceName: targetName,\n        rotated: false,\n        shouldUpdatePhone: false,\n        shouldUpdate: false\n      }\n    };\n  }\n}\n\nconst candidates = [];\nfor (const it of allItems) {\n  const j = it?.json;\n  if (Array.isArray(j)) candidates.push(...j);\n  else if (Array.isArray(j?.data)) candidates.push(...j.data);\n  else if (j && typeof j === 'object') candidates.push(j);\n}\n\nconst matched = candidates.find(c => {\n  const n = c?.name || c?.instanceName || c?.instance?.instanceName || c?.instance?.name;\n  return n && String(n).trim() === targetName;\n});\n\nconst item = prep.evolutionAction === 'STATUS'\n  ? (matched || {})\n  : (matched || candidates[0] || {});\n\nconst rawOwner = item?.ownerJid || item?.owner || item?.number || item?.instance?.ownerJid || item?.instance?.owner || item?.instance?.number || item?.profile?.id || '';\nconst cleanPhone = rawOwner ? String(rawOwner).split('@')[0].split(':')[0].replace(/\\D/g, '') : '';\nconst formattedPhone = cleanPhone ? (cleanPhone.startsWith('55') ? cleanPhone : ('55' + cleanPhone)) : '';\n\nconst rawState = item?.connectionStatus || item?.instance?.state || item?.instance?.status || item?.status || item?.state || '';\nconst base64 = item?.base64 || item?.qrcode?.base64 || null;\nconst code = item?.code || item?.qrcode?.code || null;\nconst profilePicUrl = item?.profilePicUrl || item?.instance?.profilePicUrl || null;\n\nconst safeData = {\n  connectionStatus: rawState,\n  state: rawState,\n  base64,\n  code,\n  number: formattedPhone || null,\n  profilePicUrl,\n  instanceName: targetName\n};\n\nconst currentPhone = loja.whatsapp_loja || '';\nconst shouldUpdatePhone = Boolean(formattedPhone && loja.id && formattedPhone !== currentPhone);\nconst shouldUpdate = Boolean(loja.id && (shouldUpdatePhone || rotated));\n\nreturn {\n  json: {\n    ok: true,\n    data: safeData,\n    ownerPhone: formattedPhone,\n    number: formattedPhone,\n    loja_id: loja.id,\n    activeInstanceName: targetName,\n    rotated,\n    shouldUpdatePhone,\n    shouldUpdate\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -272,9 +339,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE lojas\nSET \n  whatsapp_loja = $1,\n  config_json = jsonb_set(\n    COALESCE(config_json, '{}'::jsonb),\n    '{dadosDaLoja,whatsapp_loja}',\n    to_jsonb($1::text),\n    true\n  ),\n  updated_at = NOW()\nWHERE id = $2 AND (whatsapp_loja IS NULL OR whatsapp_loja = '');\n",
+        "query": "UPDATE lojas\nSET \n  whatsapp_loja = CASE WHEN $4::boolean THEN $1 ELSE whatsapp_loja END,\n  config_json = (\n    CASE WHEN $5::boolean THEN\n      jsonb_set(\n        CASE WHEN $4::boolean THEN\n          jsonb_set(COALESCE(config_json, '{}'::jsonb), '{dadosDaLoja,whatsapp_loja}', to_jsonb($1::text), true)\n        ELSE COALESCE(config_json, '{}'::jsonb) END,\n        '{evolutionapi,instanceName}',\n        to_jsonb($3::text),\n        true\n      )\n    ELSE\n      jsonb_set(COALESCE(config_json, '{}'::jsonb), '{dadosDaLoja,whatsapp_loja}', to_jsonb($1::text), true)\n    END\n  ),\n  updated_at = NOW()\nWHERE id = $2;\n",
         "options": {
-          "queryReplacement": "={{ [$json.ownerPhone, $json.loja_id] }}"
+          "queryReplacement": "={{ [$json.ownerPhone, $json.loja_id, $json.activeInstanceName, $json.shouldUpdatePhone, $json.rotated] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -296,7 +363,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const original = $('Formatar Resposta').first().json;\nreturn {\n  json: {\n    ok: true,\n    data: original.data,\n    ownerPhone: original.ownerPhone,\n    number: original.ownerPhone\n  }\n};"
+        "jsCode": "const original = $('Formatar Resposta').first().json;\nreturn {\n  json: {\n    ok: original.ok !== false,\n    message: original.message || undefined,\n    data: original.data,\n    ownerPhone: original.ownerPhone,\n    number: original.ownerPhone\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -364,7 +431,7 @@
       "main": [
         [
           {
-            "node": "Reset 1 Logout Evolution",
+            "node": "Reset 0 Restart Evolution",
             "type": "main",
             "index": 0
           }
@@ -378,7 +445,40 @@
         ]
       ]
     },
+    "Reset 0 Restart Evolution": {
+      "main": [
+        [
+          {
+            "node": "Reset Wait Restart (4s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Wait Restart (4s)": {
+      "main": [
+        [
+          {
+            "node": "Reset 1 Logout Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Reset 1 Logout Evolution": {
+      "main": [
+        [
+          {
+            "node": "Reset Wait Logout (2s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Wait Logout (2s)": {
       "main": [
         [
           {
@@ -390,6 +490,17 @@
       ]
     },
     "Reset 2 Delete Evolution": {
+      "main": [
+        [
+          {
+            "node": "Resolver Pos Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolver Pos Delete": {
       "main": [
         [
           {
