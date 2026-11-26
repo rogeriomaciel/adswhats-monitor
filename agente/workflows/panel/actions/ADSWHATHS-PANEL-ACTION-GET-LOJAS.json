@@ -15,7 +15,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const triggerData = $input.item.json || {};\nconst body = triggerData.body || triggerData.payload || triggerData || {};\nconst authUser = triggerData.user || {};\nconst userId = Number(authUser.user_id || authUser.id);\nconst includeDeleted = Boolean(body.include_deleted && userId === 1);\n\nreturn {\n  json: {\n    includeDeleted\n  }\n};"
+        "jsCode": "const triggerData = $input.item.json || {};\nconst body = triggerData.body || triggerData.payload || triggerData || {};\nconst authUser = triggerData.user || {};\nconst configs = triggerData.configs || {};\nconst userId = Number(authUser.user_id || authUser.id);\nconst includeDeleted = Boolean(body.include_deleted && userId === 1);\nconst evolutionApiUrl = String(configs.evolution_api_url || '').trim().replace(/\\/+$/, '');\nconst evolutionApiKey = String(configs.evolution_api_key || '').trim();\n\nreturn {\n  json: {\n    includeDeleted,\n    evolutionApiUrl,\n    evolutionApiKey\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -28,10 +28,38 @@
     },
     {
       "parameters": {
+        "method": "GET",
+        "url": "={{ $json.evolutionApiUrl ? ($json.evolutionApiUrl + '/instance/fetchInstances') : 'https://invalid.local' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.evolutionApiKey }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 4000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -170,
+        -140
+      ],
+      "id": "get-lojas-evo-status",
+      "name": "Buscar Instancias Evolution",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "operation": "executeQuery",
         "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  (l.connect_token IS NOT NULL)::boolean AS has_connect_token,\n  l.ativo,\n  l.deleted_at,\n  l.config_json,\n  l.created_at,\n  l.updated_at,\n  COALESCE((SELECT COUNT(*) FROM pessoas p WHERE p.loja_id = l.id), 0)::int AS total_contatos,\n  COALESCE((SELECT COUNT(*) FROM mensagens m WHERE m.loja_id = l.id), 0)::int AS total_mensagens,\n  (SELECT MAX(COALESCE(p.last_message_at, p.created_at)) FROM pessoas p WHERE p.loja_id = l.id) AS ultima_mensagem_at\nFROM lojas l\nWHERE ($1::boolean = true OR l.deleted_at IS NULL)\nORDER BY l.id ASC;\n",
         "options": {
-          "queryReplacement": "={{ [$json.includeDeleted] }}"
+          "queryReplacement": "={{ [$('Preparar Parametros').first().json.includeDeleted] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -53,7 +81,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const items = $input.all();\nconst lojas = items.map(item => {\n  const loja = { ...item.json };\n  delete loja.connect_token;\n  if (loja.config_json) {\n    const config = { ...loja.config_json };\n    if (config.evolutionapi) {\n      const { apikey, token, ...safeEvolution } = config.evolutionapi;\n      config.evolutionapi = {\n        ...safeEvolution,\n        hasApiKey: Boolean(apikey),\n        hasToken: Boolean(token)\n      };\n    }\n    loja.config_json = config;\n  }\n  return loja;\n});\n\nreturn {\n  json: {\n    ok: true,\n    lojas: lojas\n  }\n};"
+        "jsCode": "let rawEvoItems = [];\ntry {\n  rawEvoItems = $('Buscar Instancias Evolution').all() || [];\n} catch {\n  rawEvoItems = [];\n}\n\nconst statusMap = new Map();\nconst normalizeState = (raw) => {\n  const s = String(raw || '').toLowerCase().trim();\n  if (s === 'open' || s === 'connected') return 'open';\n  if (s === 'connecting') return 'connecting';\n  if (s === 'close' || s === 'closed' || s === 'disconnected') return 'close';\n  return 'unknown';\n};\nconst addEntry = (entry) => {\n  if (!entry || typeof entry !== 'object') return;\n  const name = entry.name || entry.instanceName || entry.instance?.instanceName || entry.instance?.name;\n  const rawState = entry.connectionStatus || entry.status || entry.state || entry.instance?.status || entry.instance?.state || entry.instance?.connectionStatus;\n  if (name) {\n    statusMap.set(String(name).trim(), normalizeState(rawState));\n  }\n};\nfor (const item of rawEvoItems) {\n  const j = item?.json;\n  if (Array.isArray(j)) j.forEach(addEntry);\n  else if (Array.isArray(j?.data)) j.data.forEach(addEntry);\n  else addEntry(j);\n}\n\nconst items = $input.all();\nconst lojas = items.map(item => {\n  const loja = { ...item.json };\n  delete loja.connect_token;\n  const rawInstance = String(loja.config_json?.evolutionapi?.instanceName || '').trim();\n  const instName = (!rawInstance || rawInstance === 'loja-undefined' || rawInstance === 'loja-null')\n    ? `loja-${loja.id}`\n    : rawInstance;\n  loja.evolution_status = statusMap.get(instName) || 'unknown';\n\n  if (loja.config_json) {\n    const config = { ...loja.config_json };\n    if (config.evolutionapi) {\n      const { apikey, token, ...safeEvolution } = config.evolutionapi;\n      config.evolutionapi = {\n        ...safeEvolution,\n        hasApiKey: Boolean(apikey),\n        hasToken: Boolean(token)\n      };\n    }\n    loja.config_json = config;\n  }\n  return loja;\n});\n\nreturn {\n  json: {\n    ok: true,\n    lojas: lojas\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -78,6 +106,17 @@
       ]
     },
     "Preparar Parametros": {
+      "main": [
+        [
+          {
+            "node": "Buscar Instancias Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Instancias Evolution": {
       "main": [
         [
           {
