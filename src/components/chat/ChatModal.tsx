@@ -574,8 +574,8 @@ export function ChatModal({ isOpen, onClose, contato }: ChatModalProps) {
 
                     {/* Timestamp & Recibo & SLA integrado */}
                     <div className="text-[10px] mt-1.5 flex items-center justify-end gap-1.5 font-mono text-muted-foreground">
-                      <span>{formatDate(msg.created_at)}</span>
-                      <span>{formatTime(msg.created_at)}</span>
+                      <span>{formatDate(msg.timestamp_mensagem || msg.created_at)}</span>
+                      <span>{formatTime(msg.timestamp_mensagem || msg.created_at)}</span>
                       {!isInbound &&
                         msg.tempo_resposta_segundos !== null &&
                         msg.tempo_resposta_segundos !== undefined &&
