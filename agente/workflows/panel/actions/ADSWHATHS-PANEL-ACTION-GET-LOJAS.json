@@ -29,7 +29,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  (l.connect_token IS NOT NULL AND l.connect_token <> '')::boolean AS has_connect_token,\n  l.ativo,\n  l.deleted_at,\n  l.config_json,\n  l.created_at,\n  l.updated_at,\n  COALESCE((SELECT COUNT(*) FROM pessoas p WHERE p.loja_id = l.id), 0)::int AS total_contatos,\n  COALESCE((SELECT COUNT(*) FROM mensagens m WHERE m.loja_id = l.id), 0)::int AS total_mensagens,\n  (SELECT MAX(COALESCE(p.last_message_at, p.created_at)) FROM pessoas p WHERE p.loja_id = l.id) AS ultima_mensagem_at\nFROM lojas l\nWHERE ($1::boolean = true OR l.deleted_at IS NULL)\nORDER BY l.id ASC;\n",
+        "query": "SELECT \n  l.id,\n  l.nome,\n  l.whatsapp_loja,\n  (l.connect_token IS NOT NULL)::boolean AS has_connect_token,\n  l.ativo,\n  l.deleted_at,\n  l.config_json,\n  l.created_at,\n  l.updated_at,\n  COALESCE((SELECT COUNT(*) FROM pessoas p WHERE p.loja_id = l.id), 0)::int AS total_contatos,\n  COALESCE((SELECT COUNT(*) FROM mensagens m WHERE m.loja_id = l.id), 0)::int AS total_mensagens,\n  (SELECT MAX(COALESCE(p.last_message_at, p.created_at)) FROM pessoas p WHERE p.loja_id = l.id) AS ultima_mensagem_at\nFROM lojas l\nWHERE ($1::boolean = true OR l.deleted_at IS NULL)\nORDER BY l.id ASC;\n",
         "options": {
           "queryReplacement": "={{ [$json.includeDeleted] }}"
         }
