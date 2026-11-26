@@ -31,6 +31,11 @@ import {
   CheckCheck,
   Eye,
   Filter,
+  List,
+  LayoutGrid,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 function formatSLA(segundos?: number | null) {
@@ -114,6 +119,12 @@ export default function CriativosPage() {
   const [creativeSort, setCreativeSort] = useState<"leads" | "sla" | "messages" | "qualidade">("leads");
   const [auditLeadFilter, setAuditLeadFilter] = useState<"ads" | "todos">("ads");
   const [selectedChatContato, setSelectedChatContato] = useState<Pessoa | null>(null);
+  const [lojasViewMode, setLojasViewMode] = useState<"table" | "cards">("table");
+  const [criativosViewMode, setCriativosViewMode] = useState<"table" | "cards">("table");
+  const [lojasSortBy, setLojasSortBy] = useState<
+    "loja_nome" | "score" | "total_pessoas" | "total_mensagens" | "sla_ads" | "taxa_resposta_pct" | "leads_esfriando"
+  >("total_mensagens");
+  const [lojasSortDir, setLojasSortDir] = useState<"asc" | "desc">("desc");
 
   // Buscar Lojas cadastradas
   const { data: lojas = [] } = useQuery({
@@ -152,6 +163,49 @@ export default function CriativosPage() {
   const criativos = data?.por_criativo || [];
   const lojasPerformance = data?.por_loja || [];
   const leadsPessoas = data?.por_pessoa || [];
+
+  const handleLojasSort = (
+    col: "loja_nome" | "score" | "total_pessoas" | "total_mensagens" | "sla_ads" | "taxa_resposta_pct" | "leads_esfriando"
+  ) => {
+    if (lojasSortBy === col) {
+      setLojasSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setLojasSortBy(col);
+      setLojasSortDir(col === "loja_nome" ? "asc" : "desc");
+    }
+  };
+
+  const renderLojasSortIcon = (
+    col: "loja_nome" | "score" | "total_pessoas" | "total_mensagens" | "sla_ads" | "taxa_resposta_pct" | "leads_esfriando"
+  ) => {
+    if (lojasSortBy !== col) {
+      return <ArrowUpDown className="w-3 h-3 opacity-40 group-hover:opacity-80 transition-opacity" />;
+    }
+    return lojasSortDir === "asc" ? (
+      <ArrowUp className="w-3 h-3 text-primary" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-primary" />
+    );
+  };
+
+  const sortedLojasPerformance = useMemo(() => {
+    const dir = lojasSortDir === "asc" ? 1 : -1;
+    return [...lojasPerformance].sort((a, b) => {
+      if (lojasSortBy === "loja_nome") {
+        return String(a.loja_nome || "").localeCompare(String(b.loja_nome || ""), "pt-BR") * dir;
+      }
+      const getVal = (lp: LojaPerformance): number => {
+        if (lojasSortBy === "score") return calculateScore(lp) ?? -1;
+        if (lojasSortBy === "total_pessoas") return lp.total_pessoas || 0;
+        if (lojasSortBy === "total_mensagens") return lp.total_mensagens || 0;
+        if (lojasSortBy === "taxa_resposta_pct") return lp.taxa_resposta_pct ?? -1;
+        if (lojasSortBy === "leads_esfriando") return lp.leads_esfriando || 0;
+        const hasAds = (lp.total_leads_ad || lp.total_ads || 0) > 0;
+        return hasAds ? (lp.tempo_mediano_ad_segundos || lp.tempo_medio_ad_segundos || 0) : -1;
+      };
+      return (getVal(a) - getVal(b)) * dir;
+    });
+  }, [lojasPerformance, lojasSortBy, lojasSortDir]);
 
   const selectedLoja = useMemo(() => {
     return lojas.find((l) => l.id === selectedLojaId) || null;
@@ -639,18 +693,217 @@ export default function CriativosPage() {
                         Clique em &ldquo;Abrir Dossiê da Loja&rdquo; para auditar criativos específicos e ler o histórico das conversas.
                       </p>
                     </div>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {lojasPerformance.length} {lojasPerformance.length === 1 ? "loja cadastrada" : "lojas cadastradas"}
-                    </span>
+                    <div className="flex items-center gap-3 self-end sm:self-auto">
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {lojasPerformance.length} {lojasPerformance.length === 1 ? "loja cadastrada" : "lojas cadastradas"}
+                      </span>
+                      <div className="flex items-center gap-1 bg-muted/60 border border-border rounded-xl p-1">
+                        <button
+                          type="button"
+                          onClick={() => setLojasViewMode("table")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            lojasViewMode === "table"
+                              ? "bg-card text-foreground shadow-2xs border border-border/50"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          <List className="w-3.5 h-3.5" />
+                          <span>Grid</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLojasViewMode("cards")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            lojasViewMode === "cards"
+                              ? "bg-card text-foreground shadow-2xs border border-border/50"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          <LayoutGrid className="w-3.5 h-3.5" />
+                          <span>Cards</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {lojasPerformance.length === 0 ? (
                     <div className="py-12 text-center text-xs text-muted-foreground">
                       Nenhuma atividade registrada no período selecionado ({periodLabel}).
                     </div>
+                  ) : lojasViewMode === "table" ? (
+                    <div className="bg-background border border-border/80 rounded-2xl overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-muted/40 border-b border-border text-muted-foreground font-semibold">
+                            <tr>
+                              <th className="py-3 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLojasSort("loja_nome")}
+                                  className="group inline-flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                                >
+                                  <span>Loja</span>
+                                  {renderLojasSortIcon("loja_nome")}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLojasSort("score")}
+                                  className="group inline-flex items-center justify-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                                >
+                                  <span>Saúde</span>
+                                  {renderLojasSortIcon("score")}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLojasSort("total_pessoas")}
+                                  className="group inline-flex items-center justify-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                                >
+                                  <span>Leads</span>
+                                  {renderLojasSortIcon("total_pessoas")}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLojasSort("total_mensagens")}
+                                  className="group inline-flex items-center justify-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                                >
+                                  <span>Msgs</span>
+                                  {renderLojasSortIcon("total_mensagens")}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLojasSort("sla_ads")}
+                                  className="group inline-flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                                >
+                                  <span>SLA Anúncios</span>
+                                  {renderLojasSortIcon("sla_ads")}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLojasSort("taxa_resposta_pct")}
+                                  className="group inline-flex items-center justify-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                                >
+                                  <span>Taxa Retorno</span>
+                                  {renderLojasSortIcon("taxa_resposta_pct")}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLojasSort("leads_esfriando")}
+                                  className="group inline-flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                                >
+                                  <span>Fila / Alerta</span>
+                                  {renderLojasSortIcon("leads_esfriando")}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-right">Ação</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/60">
+                            {sortedLojasPerformance.map((lp) => {
+                              const score = calculateScore(lp);
+                              const hasActivity = score !== null;
+                              const hasAds = (lp.total_leads_ad || lp.total_ads || 0) > 0;
+                              const slaAds = hasAds ? (lp.tempo_mediano_ad_segundos || lp.tempo_medio_ad_segundos || 0) : 0;
+                              const isSlaBom = hasAds && slaAds > 0 && slaAds <= 300;
+                              const esfriando = lp.leads_esfriando || 0;
+                              const taxa = lp.taxa_resposta_pct;
+
+                              return (
+                                <tr key={lp.loja_id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="py-3 px-4 font-bold text-foreground">
+                                    {lp.loja_nome || `Loja #${lp.loja_id}`}
+                                  </td>
+                                  <td className="py-3 px-4 text-center">
+                                    {hasActivity ? (
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-mono font-bold text-[11px] border ${
+                                          score >= 80
+                                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/25"
+                                            : score >= 50
+                                            ? "bg-amber-500/10 text-amber-500 border-amber-500/25"
+                                            : "bg-rose-500/10 text-rose-500 border-rose-500/25"
+                                        }`}
+                                      >
+                                        {score} pts
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded-lg font-mono text-[10px] font-bold bg-muted text-muted-foreground border border-border">
+                                        Sem Atividade
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-mono font-semibold text-foreground">
+                                    {lp.total_pessoas || 0}
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-mono text-muted-foreground">
+                                    {lp.total_mensagens || 0}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span
+                                      className={`font-bold font-mono inline-flex items-center gap-1 ${
+                                        !hasActivity || !hasAds
+                                          ? "text-muted-foreground"
+                                          : isSlaBom
+                                          ? "text-emerald-500"
+                                          : "text-amber-500"
+                                      }`}
+                                      title={
+                                        !hasAds && lp.tempo_mediano_segundos
+                                          ? `Sem leads de anúncio. SLA orgânico: ${formatSLA(lp.tempo_mediano_segundos)}`
+                                          : undefined
+                                      }
+                                    >
+                                      <Clock className="w-3 h-3" />
+                                      {hasActivity && hasAds ? formatSLA(slaAds) : "Sem ads"}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-mono font-bold text-foreground">
+                                    {taxa !== null && taxa !== undefined ? `${taxa}%` : "--"}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    {esfriando > 0 ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[11px] font-semibold">
+                                        <Flame className="w-3 h-3" />
+                                        {esfriando === 1 ? "1 esfriando" : `${esfriando} esfriando`}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-muted-foreground text-[11px]">
+                                        <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
+                                        {hasActivity ? "Zero fila" : "Sem leads"}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-4 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedLojaId(lp.loja_id)}
+                                      className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground text-xs font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                                    >
+                                      <span>Abrir Dossiê</span>
+                                      <ArrowRight className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {lojasPerformance.map((lp) => {
+                      {sortedLojasPerformance.map((lp) => {
                         const score = calculateScore(lp);
                         const hasActivity = score !== null;
                         const hasAds = (lp.total_leads_ad || lp.total_ads || 0) > 0;
@@ -1095,12 +1348,12 @@ export default function CriativosPage() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-muted-foreground font-semibold">Ordenar:</span>
                       <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border text-xs">
                         <button
                           onClick={() => setCreativeSort("leads")}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             creativeSort === "leads" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
                           }`}
                         >
@@ -1108,7 +1361,7 @@ export default function CriativosPage() {
                         </button>
                         <button
                           onClick={() => setCreativeSort("qualidade")}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             creativeSort === "qualidade" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
                           }`}
                         >
@@ -1116,11 +1369,38 @@ export default function CriativosPage() {
                         </button>
                         <button
                           onClick={() => setCreativeSort("sla")}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             creativeSort === "sla" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
                           }`}
                         >
                           Pior SLA
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1 bg-muted/60 border border-border rounded-xl p-1">
+                        <button
+                          type="button"
+                          onClick={() => setCriativosViewMode("table")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            criativosViewMode === "table"
+                              ? "bg-card text-foreground shadow-2xs border border-border/50"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          <List className="w-3.5 h-3.5" />
+                          <span>Grid</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCriativosViewMode("cards")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            criativosViewMode === "cards"
+                              ? "bg-card text-foreground shadow-2xs border border-border/50"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          <LayoutGrid className="w-3.5 h-3.5" />
+                          <span>Cards</span>
                         </button>
                       </div>
                     </div>
@@ -1133,6 +1413,125 @@ export default function CriativosPage() {
                       <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                         Quando novos leads chegarem clicando nos anúncios desta loja, eles serão listados aqui.
                       </p>
+                    </div>
+                  ) : criativosViewMode === "table" ? (
+                    <div className="bg-card border border-border/80 rounded-2xl overflow-hidden shadow-2xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-muted/40 border-b border-border text-muted-foreground font-semibold">
+                            <tr>
+                              <th className="py-3 px-4">Criativo / Anúncio</th>
+                              <th className="py-3 px-4">Conversas Reais (≥4 msgs)</th>
+                              <th className="py-3 px-4 text-center">Leads Únicos</th>
+                              <th className="py-3 px-4">SLA Atendimento</th>
+                              <th className="py-3 px-4 text-center">Msgs Trocadas</th>
+                              <th className="py-3 px-4 text-right">Ação</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/60">
+                            {filteredCriativos.map((c) => {
+                              const isGoogle = c.canal?.toLowerCase() === "google" || c.ad_id.startsWith("google_");
+                              const link =
+                                c.source_url ||
+                                (!isGoogle && c.ad_id
+                                  ? `https://www.facebook.com/ads/library/?id=${c.ad_id}`
+                                  : null);
+                              const slaMedio = c.tempo_mediano_segundos ?? c.tempo_medio_segundos ?? 0;
+                              const isSlaBom = slaMedio > 0 && slaMedio <= 300;
+                              const leadsUnicos = c.total_pessoas_unicas || 0;
+                              const conversasProfundas = c.conversas_profundas || 0;
+                              const pctProfundas = leadsUnicos > 0 ? Math.round((conversasProfundas / leadsUnicos) * 100) : 0;
+
+                              return (
+                                <tr key={c.criativo_id || c.ad_id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-3 min-w-[220px] max-w-sm">
+                                      {c.media_url ? (
+                                        <img
+                                          src={c.media_url}
+                                          alt={c.titulo || "Anúncio"}
+                                          className="w-10 h-10 rounded-lg object-cover border border-border shrink-0"
+                                          onError={(e) => {
+                                            (e.target as HTMLElement).style.display = "none";
+                                          }}
+                                        />
+                                      ) : (
+                                        <div className="w-10 h-10 rounded-lg bg-muted/80 border border-border/60 flex items-center justify-center shrink-0 text-muted-foreground">
+                                          {isGoogle ? (
+                                            <Search className="w-4 h-4 text-sky-400" />
+                                          ) : (
+                                            <Sparkles className="w-4 h-4 text-pink-400" />
+                                          )}
+                                        </div>
+                                      )}
+                                      <div className="min-w-0 space-y-0.5">
+                                        <span
+                                          className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                                            isGoogle
+                                              ? "bg-sky-500/10 text-sky-400 border border-sky-500/25"
+                                              : "bg-pink-500/10 text-pink-400 border border-pink-500/25"
+                                          }`}
+                                        >
+                                          {isGoogle ? "GOOGLE ADS" : "META ADS"}
+                                        </span>
+                                        <p className="font-bold text-foreground truncate" title={c.titulo || `Anúncio #${c.ad_id}`}>
+                                          {c.titulo || `Anúncio #${c.ad_id}`}
+                                        </p>
+                                        {c.tema && (
+                                          <p className="text-[10px] text-muted-foreground truncate" title={c.tema}>
+                                            &ldquo;{c.tema}&rdquo;
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 min-w-[170px]">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center justify-between font-mono text-[11px]">
+                                        <span className="font-bold text-foreground">
+                                          {conversasProfundas} ({pctProfundas}%)
+                                        </span>
+                                      </div>
+                                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                                        <div
+                                          className="h-full bg-emerald-500 rounded-full transition-all"
+                                          style={{ width: `${pctProfundas}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-mono font-bold text-primary">
+                                    {leadsUnicos}
+                                  </td>
+                                  <td className="py-3 px-4 font-mono font-bold">
+                                    <span className={slaMedio === 0 ? "text-muted-foreground" : isSlaBom ? "text-emerald-500" : "text-amber-500"}>
+                                      {slaMedio > 0 ? formatSLA(slaMedio) : "--"}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-mono text-muted-foreground">
+                                    {c.total_mensagens || 0}
+                                  </td>
+                                  <td className="py-3 px-4 text-right">
+                                    {link ? (
+                                      <a
+                                        href={link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground text-[11px] font-bold transition-all"
+                                      >
+                                        <span>Ver Criativo</span>
+                                        <ArrowUpRight className="w-3 h-3" />
+                                      </a>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground">--</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
