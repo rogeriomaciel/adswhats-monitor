@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Loja, DadosDaLoja, EvolutionConfig, EvolutionState } from "@/types/loja";
-import { saveLoja, callEvolutionApi } from "@/lib/api";
+import { saveLoja, callEvolutionApi, getConnectToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
@@ -70,6 +70,8 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
   const [evoQrCode, setEvoQrCode] = useState<string | null>(null);
   const [evoOwnerNumber, setEvoOwnerNumber] = useState<string | null>(null);
   const [isEvoLoading, setIsEvoLoading] = useState(false);
+  const [connectToken, setConnectToken] = useState<string | null>(null);
+  const [isLoadingToken, setIsLoadingToken] = useState(false);
   const pollTimerRef = useRef<number | null>(null);
 
   // Populate data when opening
@@ -83,6 +85,7 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
     setEvoQrCode(null);
     setEvoStatus("unknown");
     setEvoOwnerNumber(null);
+    setConnectToken(null);
 
     if (loja) {
       setNome(loja.nome || "");
@@ -837,8 +840,8 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
                 </div>
               </div>
 
-              {/* Link Público para o Lojista */}
-              {loja?.connect_token && (
+              {/* Link Público para o Lojista (buscado sob demanda por segurança) */}
+              {loja?.id && loja?.has_connect_token && (
                 <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
@@ -847,25 +850,51 @@ export function LojaModal({ isOpen, onClose, onSaved, loja, initialTab = "geral"
                     </label>
                     <span className="text-[10px] text-muted-foreground">Sem necessidade de login</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={`${window.location.origin}/conectar/${loja.connect_token}`}
-                      className="flex-1 px-3 py-1.5 rounded-lg bg-background border border-border text-xs text-muted-foreground font-mono select-all focus:outline-none"
-                    />
+                  {connectToken ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={`${window.location.origin}/conectar/${connectToken}`}
+                        className="flex-1 px-3 py-1.5 rounded-lg bg-background border border-border text-xs text-muted-foreground font-mono select-all focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/conectar/${connectToken}`);
+                          toast.success("Link copiado para a área de transferência!");
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium flex items-center gap-1.5 transition-colors shrink-0"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copiar Link
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/conectar/${loja.connect_token}`);
-                        toast.success("Link copiado para a área de transferência!");
+                      disabled={isLoadingToken}
+                      onClick={async () => {
+                        setIsLoadingToken(true);
+                        try {
+                          const token = await getConnectToken(loja.id);
+                          if (token) {
+                            setConnectToken(token);
+                            await navigator.clipboard.writeText(`${window.location.origin}/conectar/${token}`);
+                            toast.success("Link gerado e copiado para a área de transferência!");
+                          }
+                        } catch (err: any) {
+                          toast.error(err?.message || "Erro ao obter link de conexão.");
+                        } finally {
+                          setIsLoadingToken(false);
+                        }
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium flex items-center gap-1.5 transition-colors shrink-0"
+                      className="w-full px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
                     >
-                      <Copy className="w-3.5 h-3.5" />
-                      Copiar Link
+                      {isLoadingToken ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
+                      Gerar e Copiar Link Público
                     </button>
-                  </div>
+                  )}
                   <p className="text-[10px] text-muted-foreground">
                     Envie este link direto para o lojista escanear o QR Code no aparelho dele sem acessar o painel administrativo.
                   </p>

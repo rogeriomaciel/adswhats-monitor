@@ -1,0 +1,106 @@
+{
+  "name": "ADSWHATHS-PANEL-ACTION-GET-CONNECT-TOKEN",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -500,
+        0
+      ],
+      "id": "get-connect-token-start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const triggerData = $input.item.json || {};\nconst body = triggerData.body || triggerData.payload || triggerData || {};\nconst lojaId = body.loja_id ? parseInt(body.loja_id, 10) : null;\n\nif (!lojaId || !Number.isFinite(lojaId)) {\n  return { json: { hasError: true, error: 'loja_id inválido ou não informado.' } };\n}\n\nreturn {\n  json: {\n    hasError: false,\n    lojaId\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        0
+      ],
+      "id": "get-connect-token-prep",
+      "name": "Preparar Parametros"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, nome, connect_token\nFROM lojas\nWHERE id = $1::int AND deleted_at IS NULL\nLIMIT 1;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.lojaId] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -60,
+        0
+      ],
+      "id": "get-connect-token-db",
+      "name": "Consultar Token Loja",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prep = $('Preparar Parametros').first()?.json || {};\nif (prep.hasError) {\n  return { json: { ok: false, message: prep.error } };\n}\n\nconst row = $input.first()?.json || {};\nif (!row.id || !row.connect_token) {\n  return { json: { ok: false, message: 'Token de conexão não encontrado para esta loja.' } };\n}\n\nreturn {\n  json: {\n    ok: true,\n    loja_id: row.id,\n    connect_token: row.connect_token\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        0
+      ],
+      "id": "get-connect-token-format",
+      "name": "Formatar Retorno"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Preparar Parametros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Parametros": {
+      "main": [
+        [
+          {
+            "node": "Consultar Token Loja",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Token Loja": {
+      "main": [
+        [
+          {
+            "node": "Formatar Retorno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

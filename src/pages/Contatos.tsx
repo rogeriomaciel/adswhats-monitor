@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getContatos, getLojas } from "@/lib/api";
+import { getContatosComResumo, getLojas } from "@/lib/api";
 import { useRealtimeNotifications } from "@/lib/pusher";
 import { Pessoa } from "@/types/contato";
 import { Navbar } from "@/components/Navbar";
@@ -25,6 +25,8 @@ import {
   Zap,
   Clock,
   Radio,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 function formatPhone(phone: string) {
@@ -84,7 +86,9 @@ export default function ContatosPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
+  const [page, setPage] = useState(0);
   const [activeChatContact, setActiveChatContact] = useState<Pessoa | null>(null);
+  const pageSize = 50;
 
   // Sincroniza com parâmetros de URL (ex: ?filter=sem_resposta&loja_id=2)
   useEffect(() => {
@@ -115,60 +119,45 @@ export default function ContatosPage() {
     queryFn: getLojas,
   });
 
-  // Buscar contatos
+  // Resetar para primeira página quando filtros mudarem
+  useEffect(() => {
+    setPage(0);
+  }, [selectedLojaId, selectedOrigem, quickFilter, debouncedSearch]);
+
+  // Buscar contatos com resumo real do banco e paginação
   const {
-    data: contatos = [],
+    data: contatosData,
     isLoading,
     isRefetching,
     refetch,
   } = useQuery({
-    queryKey: ["contatos", selectedLojaId, selectedOrigem, debouncedSearch],
+    queryKey: ["contatos", selectedLojaId, selectedOrigem, quickFilter, debouncedSearch, page],
     queryFn: () =>
-      getContatos({
+      getContatosComResumo({
         loja_id: selectedLojaId,
         origem: selectedOrigem,
+        quick_filter: quickFilter,
         search: debouncedSearch,
+        limit: pageSize,
+        offset: page * pageSize,
       }),
   });
 
-  // Aplicação do filtro rápido de urgência (SLA / Origem)
-  const filteredContatos = contatos.filter((c) => {
-    if (quickFilter === "sem_resposta") {
-      return c.ultima_direcao === "inbound";
-    }
-    if (quickFilter === "sla_estourado") {
-      const waitTimeExceeded =
-        c.ultima_direcao === "inbound" &&
-        c.last_message_at &&
-        Date.now() - new Date(c.last_message_at).getTime() > 15 * 60 * 1000;
-      return waitTimeExceeded || Boolean(c.tempo_medio_resposta_segundos && c.tempo_medio_resposta_segundos > 900);
-    }
-    if (quickFilter === "meta_ads") {
-      return c.origem === "instagram_ads" || c.origem === "facebook_ads" || Boolean(c.metadata_json?.isAd && c.metadata_json?.canal !== "google");
-    }
-    if (quickFilter === "google_ads") {
-      return c.origem === "google_ads" || c.ultimo_criativo_canal === "google" || c.metadata_json?.canal === "google";
-    }
-    return true;
-  });
+  const contatos = contatosData?.contatos || [];
+  const resumo = contatosData?.resumo || {
+    total_contatos: 0,
+    leads_ads: 0,
+    sem_resposta: 0,
+    sla_estourado: 0,
+    total_filtrado: 0,
+  };
 
-  const totalContatos = contatos.length;
-  const leadsAds = contatos.filter(
-    (c) =>
-      c.origem === "instagram_ads" ||
-      c.origem === "facebook_ads" ||
-      c.origem === "google_ads" ||
-      Boolean(c.metadata_json?.isAd)
-  ).length;
-  // Sem resposta = cliente mandou mensagem e a loja ainda não respondeu (inbound)
-  const semRespostaCount = contatos.filter((c) => c.ultima_direcao === "inbound").length;
-  const slaCriticoCount = contatos.filter(
-    (c) =>
-      (c.ultima_direcao === "inbound" &&
-        c.last_message_at &&
-        Date.now() - new Date(c.last_message_at).getTime() > 15 * 60 * 1000) ||
-      Boolean(c.tempo_medio_resposta_segundos && c.tempo_medio_resposta_segundos > 900)
-  ).length;
+  const totalContatos = resumo.total_contatos;
+  const leadsAds = resumo.leads_ads;
+  const semRespostaCount = resumo.sem_resposta;
+  const slaCriticoCount = resumo.sla_estourado;
+  const totalFiltrado = resumo.total_filtrado;
+  const totalPages = Math.max(1, Math.ceil(totalFiltrado / pageSize));
 
   const lojaOptions = useMemo<DropdownOption<number | null>[]>(() => {
     return [
@@ -416,7 +405,7 @@ export default function ContatosPage() {
             <Loader2 className="w-8 h-8 text-primary animate-spin" />
             <p className="text-xs text-muted-foreground font-medium">Carregando leads das lojas...</p>
           </div>
-        ) : filteredContatos.length === 0 ? (
+        ) : contatos.length === 0 ? (
           <div className="p-16 rounded-2xl bg-card border border-border/80 text-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-muted border border-border flex items-center justify-center mx-auto text-muted-foreground">
               <Users className="w-6 h-6" />
@@ -441,7 +430,7 @@ export default function ContatosPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {filteredContatos.map((contato) => {
+                  {contatos.map((contato) => {
                     const isGoogle =
                       contato.origem === "google_ads" ||
                       contato.ultimo_criativo_canal === "google" ||
@@ -582,7 +571,7 @@ export default function ContatosPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredContatos.map((contato) => {
+            {contatos.map((contato) => {
               const isGoogle =
                 contato.origem === "google_ads" ||
                 contato.ultimo_criativo_canal === "google" ||
@@ -688,6 +677,45 @@ export default function ContatosPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!isLoading && totalFiltrado > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+            <p className="text-xs text-muted-foreground">
+              Mostrando{" "}
+              <span className="font-semibold text-foreground">{page * pageSize + 1}</span>
+              {" – "}
+              <span className="font-semibold text-foreground">
+                {Math.min((page + 1) * pageSize, totalFiltrado)}
+              </span>{" "}
+              de <span className="font-semibold text-foreground">{totalFiltrado}</span> leads
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page === 0 || isRefetching}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                className="px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1 transition-colors"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                Anterior
+              </button>
+              <span className="text-xs font-mono text-muted-foreground px-2">
+                Página {page + 1} de {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page + 1 >= totalPages || isRefetching}
+                onClick={() => setPage((p) => p + 1)}
+                className="px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1 transition-colors"
+              >
+                Próxima
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         )}
       </main>

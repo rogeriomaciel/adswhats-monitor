@@ -1,0 +1,106 @@
+{
+  "name": "ADSWHATHS-PANEL-ACTION-TOGGLE-CONTATO-INTERNO",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -500,
+        0
+      ],
+      "id": "toggle-interno-start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const triggerData = $input.item.json || {};\nconst body = triggerData.body || triggerData.payload || triggerData || {};\nconst pessoaId = body.pessoa_id ? parseInt(body.pessoa_id, 10) : null;\nconst isInterno = Boolean(body.is_interno);\n\nif (!pessoaId || !Number.isFinite(pessoaId)) {\n  return { json: { hasError: true, error: 'pessoa_id inválido ou não informado.' } };\n}\n\nreturn {\n  json: {\n    hasError: false,\n    pessoaId,\n    isInterno\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        0
+      ],
+      "id": "toggle-interno-prep",
+      "name": "Preparar Parametros"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.pessoas\nSET \n  metadata_json = jsonb_set(COALESCE(metadata_json, '{}'::jsonb), '{is_interno}', to_jsonb($2::boolean), true),\n  updated_at = NOW()\nWHERE id = $1::bigint\nRETURNING id, metadata_json;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.pessoaId, $json.isInterno] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -60,
+        0
+      ],
+      "id": "toggle-interno-db",
+      "name": "Atualizar Contato",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gzdxauwjYJWSCtxI",
+          "name": "ADSWHATS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prep = $('Preparar Parametros').first()?.json || {};\nif (prep.hasError) {\n  return { json: { ok: false, message: prep.error } };\n}\n\nconst row = $input.first()?.json || {};\nif (!row.id) {\n  return { json: { ok: false, message: 'Contato não encontrado.' } };\n}\n\nreturn {\n  json: {\n    ok: true,\n    pessoa_id: row.id,\n    is_interno: Boolean(row.metadata_json?.is_interno)\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        0
+      ],
+      "id": "toggle-interno-format",
+      "name": "Formatar Retorno"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Preparar Parametros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Parametros": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Contato": {
+      "main": [
+        [
+          {
+            "node": "Formatar Retorno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -103,8 +103,18 @@ export default function Dashboard() {
 
   const totalLojas = lojas.length;
   const lojasAtivas = lojas.filter((l) => l.ativo).length;
+  const lojasSemSinal = useMemo(() => {
+    const threshold = Date.now() - 24 * 60 * 60 * 1000;
+    return lojas
+      .filter((l) => l.ativo)
+      .filter((l) => {
+        if (!l.ultima_mensagem_at) return true;
+        const ts = new Date(l.ultima_mensagem_at).getTime();
+        return Number.isFinite(ts) && ts < threshold;
+      });
+  }, [lojas]);
   const totalContatos = lojas.reduce((acc, l) => acc + (l.total_contatos || 0), 0);
-  const slaMedio = metricsData?.resumo?.tempo_medio_segundos || 0;
+  const slaMedio = metricsData?.resumo?.tempo_mediano_comercial_segundos || metricsData?.resumo?.tempo_mediano_segundos || metricsData?.resumo?.tempo_medio_segundos || 0;
   const leadsSemResposta = metricsData?.resumo?.total_pendentes || 0;
 
   const handleRefreshAll = () => {
@@ -160,6 +170,36 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+
+        {/* Alerta de Lojas sem Sincronização (>24h sem mensagem) */}
+        {!isLoadingLojas && lojasSemSinal.length > 0 && (
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-xs sm:text-sm font-bold text-foreground">
+                  {lojasSemSinal.length} loja{lojasSemSinal.length > 1 ? "s" : ""} ativa{lojasSemSinal.length > 1 ? "s" : ""} sem receber mensagens há mais de 24h
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {lojasSemSinal
+                    .slice(0, 4)
+                    .map((l) => `${l.nome} (${l.ultima_mensagem_at ? formatDateRelative(l.ultima_mensagem_at) : "sem registro"})`)
+                    .join(" • ")}
+                  {lojasSemSinal.length > 4 ? ` e mais ${lojasSemSinal.length - 4}...` : ""}
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/lojas"
+              className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shrink-0 self-start sm:self-center transition-colors"
+            >
+              Verificar Instâncias
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
 
         {/* 4 KPIs Essenciais com Design Respirável */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
