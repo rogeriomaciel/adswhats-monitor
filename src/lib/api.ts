@@ -191,6 +191,8 @@ export async function getContatosComResumo(filters: {
   quick_filter?: string;
   limit?: number;
   offset?: number;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
 } = {}): Promise<ContatosPaginatedResponse> {
   const res = await callPanelAction<{
     ok: boolean;

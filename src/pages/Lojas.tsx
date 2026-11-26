@@ -55,13 +55,7 @@ export default function LojasPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    Online: true,
-    Conectando: true,
-    Offline: true,
-    Pausada: false,
-    Excluídas: true,
-  });
+  const [activeStatusTab, setActiveStatusTab] = useState<string>("Online");
   const [groupPages, setGroupPages] = useState<Record<string, number>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLoja, setSelectedLoja] = useState<Loja | null>(null);
@@ -149,11 +143,16 @@ export default function LojasPage() {
         badgeClass: "bg-muted text-muted-foreground border-border",
         items: filteredLojas.filter((l) => getLojaStatusLabel(l) === "Pausada"),
       },
+      {
+        key: "Todas",
+        label: "Todas",
+        dotClass: "bg-primary",
+        badgeClass: "bg-primary/10 text-primary border-primary/20",
+        items: filteredLojas,
+      },
     ].filter((g) => g.items.length > 0);
 
-  const toggleGroup = (key: string) => {
-    setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  const activeGroup = statusGroups.find((g) => g.key === activeStatusTab) || statusGroups[0];
 
   const setGroupPage = (key: string, page: number) => {
     setGroupPages((prev) => ({ ...prev, [key]: page }));
@@ -441,10 +440,35 @@ export default function LojasPage() {
               </button>
             )}
           </div>
-        ) : (
+        ) : activeGroup ? (
           <div className="space-y-4">
-            {statusGroups.map((group) => {
-              const isExpanded = expandedGroups[group.key] ?? true;
+            {/* Abas por Status */}
+            <div className="flex flex-wrap items-center gap-2">
+              {statusGroups.map((group) => {
+                const isActive = group.key === activeGroup.key;
+                return (
+                  <button
+                    key={group.key}
+                    type="button"
+                    onClick={() => setActiveStatusTab(group.key)}
+                    className={`px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                      isActive
+                        ? "bg-card border-primary/50 text-foreground shadow-sm ring-1 ring-primary/20"
+                        : "bg-card/50 border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${group.dotClass}`} />
+                    <span>{group.label}</span>
+                    <span className={`text-[11px] font-mono font-bold px-2 py-0.2 rounded-full border ${group.badgeClass}`}>
+                      {group.items.length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {(() => {
+              const group = activeGroup;
               const pageSize = viewMode === "table" ? 10 : 9;
               const totalItems = group.items.length;
               const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -453,27 +477,7 @@ export default function LojasPage() {
 
               return (
                 <section key={group.key} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-                  {/* Cabeçalho Sanfonado do Grupo */}
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(group.key)}
-                    className="w-full px-4 py-3.5 flex items-center justify-between gap-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${group.dotClass}`} />
-                      <h2 className="text-sm font-bold font-display text-foreground">{group.label}</h2>
-                      <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${group.badgeClass}`}>
-                        {totalItems}
-                      </span>
-                    </div>
-                    <ChevronDown
-                      className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""
-                        }`}
-                    />
-                  </button>
-
-                  {isExpanded && (
-                    <div className="border-t border-border">
+                  <div>
                       {viewMode === "table" ? (
                         <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -888,12 +892,11 @@ export default function LojasPage() {
                         </div>
                       )}
                     </div>
-                  )}
                 </section>
               );
-            })}
+            })()}
           </div>
-        )}
+        ) : null}
       </main>
 
       {/* Modal Confirmação de Exclusão */}

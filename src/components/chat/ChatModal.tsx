@@ -152,82 +152,92 @@ function CustomAudioPlayer({
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
+  const hasTranscription = Boolean(
+    transcription && transcription !== "[Mensagem de Áudio]" && transcription !== "[Áudio]"
+  );
+
   return (
     <div className="space-y-2 mt-1">
       {mediaUrl && (
-        <audio ref={audioRef} src={mediaUrl} preload="metadata" className="hidden" />
+        <>
+          <audio ref={audioRef} src={mediaUrl} preload="metadata" className="hidden" />
+
+          {/* Modern Audio Player Bar */}
+          <div
+            className={`flex items-center gap-2 p-2 rounded-xl ${
+              isInbound
+                ? "bg-muted/70 border border-border/80 text-foreground"
+                : "bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20 text-foreground"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={togglePlay}
+              className={`w-9 h-9 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 touch-manipulation ${
+                isInbound
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "bg-emerald-600 dark:bg-emerald-500 text-white dark:text-emerald-950 shadow-xs"
+              }`}
+              title={isPlaying ? "Pausar" : "Reproduzir"}
+            >
+              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+            </button>
+
+            <div className="flex-1 flex flex-col justify-center min-w-[130px] px-1">
+              <input
+                type="range"
+                min={0}
+                max={duration || 100}
+                value={currentTime}
+                onChange={handleSeek}
+                className="w-full h-1.5 bg-muted-foreground/30 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              />
+              <div className="flex items-center justify-between text-[10px] mt-1 font-mono text-muted-foreground">
+                <span>{formatAudioTime(currentTime)}</span>
+                <span>{formatAudioTime(duration)}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={cycleSpeed}
+              className="px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition-all touch-manipulation min-h-[28px] bg-background/80 border border-border text-foreground hover:bg-muted"
+              title="Alterar velocidade"
+            >
+              {playbackRate}x
+            </button>
+          </div>
+        </>
       )}
 
-      {/* Modern Audio Player Bar */}
-      <div
-        className={`flex items-center gap-2 p-2 rounded-xl ${
-          isInbound
-            ? "bg-muted/70 border border-border/80 text-foreground"
-            : "bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20 text-foreground"
-        }`}
-      >
-        <button
-          type="button"
-          onClick={togglePlay}
-          className={`w-9 h-9 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 touch-manipulation ${
-            isInbound
-              ? "bg-primary text-primary-foreground shadow-xs"
-              : "bg-emerald-600 dark:bg-emerald-500 text-white dark:text-emerald-950 shadow-xs"
-          }`}
-          title={isPlaying ? "Pausar" : "Reproduzir"}
-        >
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-        </button>
-
-        <div className="flex-1 flex flex-col justify-center min-w-[130px] px-1">
-          <input
-            type="range"
-            min={0}
-            max={duration || 100}
-            value={currentTime}
-            onChange={handleSeek}
-            className="w-full h-1.5 bg-muted-foreground/30 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-          />
-          <div className="flex items-center justify-between text-[10px] mt-1 font-mono text-muted-foreground">
-            <span>{formatAudioTime(currentTime)}</span>
-            <span>{formatAudioTime(duration)}</span>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={cycleSpeed}
-          className="px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition-all touch-manipulation min-h-[28px] bg-background/80 border border-border text-foreground hover:bg-muted"
-          title="Alterar velocidade"
-        >
-          {playbackRate}x
-        </button>
-      </div>
-
       {/* Transcription drawer */}
-      {transcription && transcription !== "[Mensagem de Áudio]" && transcription !== "[Áudio]" ? (
+      {hasTranscription ? (
         <div className="space-y-1">
-          <button
-            type="button"
-            onClick={() => setShowTranscription(!showTranscription)}
-            className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Bot className="w-3 h-3" />
-            <span>{showTranscription ? "Ocultar Transcrição de Áudio" : "Ver Transcrição de Áudio"}</span>
-          </button>
+          {mediaUrl && (
+            <button
+              type="button"
+              onClick={() => setShowTranscription(!showTranscription)}
+              className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Bot className="w-3 h-3" />
+              <span>{showTranscription ? "Ocultar Transcrição de Áudio" : "Ver Transcrição de Áudio"}</span>
+            </button>
+          )}
 
-          {showTranscription && (
+          {(showTranscription || !mediaUrl) && (
             <div className="p-2.5 rounded-lg text-xs leading-relaxed border bg-background/80 border-border/80 text-foreground">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold mb-1 opacity-70">
                 <Sparkles className="w-2.5 h-2.5" />
-                <span>Transcrição Automática:</span>
+                <span>{mediaUrl ? "Transcrição Automática:" : "Áudio Transcrito:"}</span>
               </div>
               <p className="whitespace-pre-wrap select-text italic font-sans">{transcription}</p>
             </div>
           )}
         </div>
       ) : (
-        <p className="text-[10px] text-muted-foreground italic">Áudio sem transcrição disponível</p>
+        <p className="text-[10px] text-muted-foreground italic">
+          {mediaUrl ? "Áudio sem transcrição disponível" : "Mensagem de áudio (transcrição indisponível)"}
+        </p>
       )}
     </div>
   );

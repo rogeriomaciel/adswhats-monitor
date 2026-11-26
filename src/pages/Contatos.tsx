@@ -28,6 +28,9 @@ import {
   Radio,
   ChevronLeft,
   ChevronRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 function formatPhone(phone: string) {
@@ -74,6 +77,7 @@ function formatSLA(segundos?: number | null) {
 }
 
 type QuickFilter = "todos" | "sem_resposta" | "sla_estourado" | "meta_ads" | "google_ads";
+type SortColumn = "nome" | "loja_nome" | "origem" | "last_message_at" | "total_mensagens";
 
 export default function ContatosPage() {
   const [searchParams] = useSearchParams();
@@ -88,8 +92,113 @@ export default function ContatosPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [page, setPage] = useState(0);
+  const [sortBy, setSortBy] = useState<SortColumn>("last_message_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [activeChatContact, setActiveChatContact] = useState<Pessoa | null>(null);
   const pageSize = 50;
+
+  const handleSort = (col: SortColumn) => {
+    if (sortBy === col) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(col);
+      setSortDir(col === "last_message_at" || col === "total_mensagens" ? "desc" : "asc");
+    }
+    setPage(0);
+  };
+
+  const renderSortIcon = (col: SortColumn) => {
+    if (sortBy !== col) {
+      return <ArrowUpDown className="w-3 h-3 opacity-40 group-hover:opacity-80 transition-opacity" />;
+    }
+    return sortDir === "asc" ? (
+      <ArrowUp className="w-3 h-3 text-primary" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-primary" />
+    );
+  };
+
+  const handleFilterLojaClick = (lojaId: number) => {
+    setSelectedLojaId((prev) => (prev === lojaId ? null : lojaId));
+  };
+
+  const handleFilterOrigemClick = (origemValue: string) => {
+    setSelectedOrigem((prev) => (prev === origemValue ? "todos" : origemValue));
+  };
+
+  const renderOrigemBadge = (isAd: boolean, isGoogle: boolean, isFacebook: boolean, compact = false) => {
+    const origemValue = !isAd
+      ? "organico"
+      : isGoogle
+      ? "google_ads"
+      : isFacebook
+      ? "facebook_ads"
+      : "instagram_ads";
+    const isActive = selectedOrigem === origemValue;
+
+    if (!isAd) {
+      return (
+        <button
+          type="button"
+          onClick={() => handleFilterOrigemClick("organico")}
+          title={isActive ? "Remover filtro de origem" : "Filtrar por Orgânico"}
+          className={`inline-flex items-center rounded-full font-medium transition-all cursor-pointer ${
+            compact
+              ? "px-2 py-0.5 text-[10px] bg-muted text-muted-foreground hover:text-foreground hover:ring-1 hover:ring-primary/40"
+              : "px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/80"
+          } ${isActive ? "ring-1 ring-primary text-primary bg-primary/10" : ""}`}
+        >
+          Orgânico
+        </button>
+      );
+    }
+
+    if (isGoogle) {
+      return (
+        <button
+          type="button"
+          onClick={() => handleFilterOrigemClick("google_ads")}
+          title={isActive ? "Remover filtro de origem" : "Filtrar por Google Ads"}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 hover:ring-1 hover:ring-blue-500/50 transition-all cursor-pointer ${
+            isActive ? "ring-1 ring-blue-500" : ""
+          }`}
+        >
+          <Search className="w-2.5 h-2.5" />
+          GOOGLE ADS
+        </button>
+      );
+    }
+
+    if (isFacebook) {
+      return (
+        <button
+          type="button"
+          onClick={() => handleFilterOrigemClick("facebook_ads")}
+          title={isActive ? "Remover filtro de origem" : "Filtrar por Facebook Ads"}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-600/10 text-blue-700 dark:text-blue-400 border border-blue-600/20 hover:ring-1 hover:ring-blue-600/50 transition-all cursor-pointer ${
+            isActive ? "ring-1 ring-blue-600" : ""
+          }`}
+        >
+          <Sparkles className="w-2.5 h-2.5" />
+          FACEBOOK ADS
+        </button>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => handleFilterOrigemClick("instagram_ads")}
+        title={isActive ? "Remover filtro de origem" : "Filtrar por Instagram Ads"}
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20 hover:ring-1 hover:ring-pink-500/50 transition-all cursor-pointer ${
+          isActive ? "ring-1 ring-pink-500" : ""
+        }`}
+      >
+        <Sparkles className="w-2.5 h-2.5" />
+        INSTAGRAM ADS
+      </button>
+    );
+  };
 
   // Sincroniza com parâmetros de URL (ex: ?filter=sem_resposta&loja_id=2)
   useEffect(() => {
@@ -132,7 +241,7 @@ export default function ContatosPage() {
     isRefetching,
     refetch,
   } = useQuery({
-    queryKey: ["contatos", selectedLojaId, selectedOrigem, quickFilter, debouncedSearch, page],
+    queryKey: ["contatos", selectedLojaId, selectedOrigem, quickFilter, debouncedSearch, page, sortBy, sortDir],
     queryFn: () =>
       getContatosComResumo({
         loja_id: selectedLojaId,
@@ -141,6 +250,8 @@ export default function ContatosPage() {
         search: debouncedSearch,
         limit: pageSize,
         offset: page * pageSize,
+        sort_by: sortBy,
+        sort_dir: sortDir,
       }),
   });
 
@@ -422,11 +533,56 @@ export default function ContatosPage() {
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/40 border-b border-border text-muted-foreground font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Lead / Contato</th>
-                    <th className="py-3 px-4">Loja</th>
-                    <th className="py-3 px-4">Origem / Anúncio</th>
-                    <th className="py-3 px-4">Última Mensagem & SLA</th>
-                    <th className="py-3 px-4 text-center">Mensagens</th>
+                    <th className="py-3 px-4">
+                      <button
+                        type="button"
+                        onClick={() => handleSort("nome")}
+                        className="group inline-flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        <span>Lead / Contato</span>
+                        {renderSortIcon("nome")}
+                      </button>
+                    </th>
+                    <th className="py-3 px-4">
+                      <button
+                        type="button"
+                        onClick={() => handleSort("loja_nome")}
+                        className="group inline-flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        <span>Loja</span>
+                        {renderSortIcon("loja_nome")}
+                      </button>
+                    </th>
+                    <th className="py-3 px-4">
+                      <button
+                        type="button"
+                        onClick={() => handleSort("origem")}
+                        className="group inline-flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        <span>Origem / Anúncio</span>
+                        {renderSortIcon("origem")}
+                      </button>
+                    </th>
+                    <th className="py-3 px-4">
+                      <button
+                        type="button"
+                        onClick={() => handleSort("last_message_at")}
+                        className="group inline-flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        <span>Última Mensagem & SLA</span>
+                        {renderSortIcon("last_message_at")}
+                      </button>
+                    </th>
+                    <th className="py-3 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleSort("total_mensagens")}
+                        className="group inline-flex items-center justify-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        <span>Mensagens</span>
+                        {renderSortIcon("total_mensagens")}
+                      </button>
+                    </th>
                     <th className="py-3 px-4 text-right">Ação</th>
                   </tr>
                 </thead>
@@ -467,32 +623,24 @@ export default function ContatosPage() {
 
                         {/* Loja */}
                         <td className="py-3 px-4">
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted text-[11px] text-foreground font-medium border border-border/50">
+                          <button
+                            type="button"
+                            onClick={() => handleFilterLojaClick(contato.loja_id)}
+                            title={selectedLojaId === contato.loja_id ? "Remover filtro de loja" : "Filtrar por esta loja"}
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted text-[11px] text-foreground font-medium border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary transition-all cursor-pointer ${
+                              selectedLojaId === contato.loja_id ? "border-primary bg-primary/10 text-primary" : ""
+                            }`}
+                          >
                             <Store className="w-3 h-3 text-muted-foreground" />
                             {contato.loja_nome || `Loja #${contato.loja_id}`}
-                          </span>
+                          </button>
                         </td>
 
                         {/* Origem / Criativo */}
                         <td className="py-3 px-4">
                           {isAd ? (
                             <div className="space-y-1">
-                              {isGoogle ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-                                  <Search className="w-2.5 h-2.5" />
-                                  GOOGLE ADS
-                                </span>
-                              ) : isFacebook ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-600/10 text-blue-700 dark:text-blue-400 border border-blue-600/20">
-                                  <Sparkles className="w-2.5 h-2.5" />
-                                  FACEBOOK ADS
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20">
-                                  <Sparkles className="w-2.5 h-2.5" />
-                                  INSTAGRAM ADS
-                                </span>
-                              )}
+                              {renderOrigemBadge(isAd, isGoogle, isFacebook)}
                               {(contato.ultimo_criativo_titulo || contato.metadata_json?.adTitulo) && (
                                 <p
                                   className="text-[10px] font-medium text-foreground truncate max-w-[200px]"
@@ -503,7 +651,7 @@ export default function ContatosPage() {
                               )}
                             </div>
                           ) : (
-                            <span className="text-[11px] text-muted-foreground font-medium">Orgânico</span>
+                            renderOrigemBadge(false, false, false)
                           )}
                         </td>
 
@@ -602,36 +750,22 @@ export default function ContatosPage() {
                         </div>
                       </div>
 
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-muted text-[10px] text-foreground font-medium shrink-0 border border-border/50">
+                      <button
+                        type="button"
+                        onClick={() => handleFilterLojaClick(contato.loja_id)}
+                        title={selectedLojaId === contato.loja_id ? "Remover filtro de loja" : "Filtrar por esta loja"}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-muted text-[10px] text-foreground font-medium shrink-0 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary transition-all cursor-pointer ${
+                          selectedLojaId === contato.loja_id ? "border-primary bg-primary/10 text-primary" : ""
+                        }`}
+                      >
                         <Store className="w-3 h-3 text-muted-foreground" />
                         {contato.loja_nome || `Loja #${contato.loja_id}`}
-                      </span>
+                      </button>
                     </div>
 
                     <div className="pt-3 border-t border-border/60 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        {isAd ? (
-                          isGoogle ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-                              <Search className="w-2.5 h-2.5" />
-                              GOOGLE ADS
-                            </span>
-                          ) : isFacebook ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-600/10 text-blue-700 dark:text-blue-400 border border-blue-600/20">
-                              <Sparkles className="w-2.5 h-2.5" />
-                              FACEBOOK ADS
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20">
-                              <Sparkles className="w-2.5 h-2.5" />
-                              INSTAGRAM ADS
-                            </span>
-                          )
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
-                            Orgânico
-                          </span>
-                        )}
+                        {renderOrigemBadge(isAd, isGoogle, isFacebook, true)}
 
                         {contato.ultima_direcao === "inbound" ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold text-[10px] animate-pulse">
