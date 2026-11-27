@@ -136,6 +136,7 @@ export default function CriativosPage() {
   const {
     data,
     isLoading,
+    isError,
     isRefetching,
     refetch,
   } = useQuery({
@@ -143,7 +144,7 @@ export default function CriativosPage() {
     queryFn: () => getMetricsSLA({ loja_id: selectedLojaId, dias }),
   });
 
-  const resumo = data?.resumo || {
+  const resumo = (data?.resumo && typeof data.resumo === "object" ? data.resumo : null) || {
     total_mensagens: 0,
     total_inbound: 0,
     total_outbound: 0,
@@ -160,9 +161,9 @@ export default function CriativosPage() {
     taxa_resposta_pct: 0,
   };
 
-  const criativos = data?.por_criativo || [];
-  const lojasPerformance = data?.por_loja || [];
-  const leadsPessoas = data?.por_pessoa || [];
+  const criativos = Array.isArray(data?.por_criativo) ? data.por_criativo : [];
+  const lojasPerformance = Array.isArray(data?.por_loja) ? data.por_loja : [];
+  const leadsPessoas = Array.isArray(data?.por_pessoa) ? data.por_pessoa : [];
 
   const handleLojasSort = (
     col: "loja_nome" | "score" | "total_pessoas" | "total_mensagens" | "sla_ads" | "taxa_resposta_pct" | "leads_esfriando"
@@ -269,7 +270,8 @@ export default function CriativosPage() {
       .filter((c) => {
         if (selectedCanal === "todos") return true;
         const canal = (c.canal || "").toLowerCase();
-        const isGoogle = canal === "google" || c.ad_id.startsWith("google_");
+        const adIdStr = String(c.ad_id || "");
+        const isGoogle = canal === "google" || adIdStr.startsWith("google_");
         const isFacebook = canal === "facebook";
         const isInstagram = canal === "instagram" || (!isGoogle && !isFacebook);
 
@@ -293,13 +295,13 @@ export default function CriativosPage() {
 
   // Cálculo da distribuição por canal com consistência matemática garantida
   const countInstagram = criativos
-    .filter((c) => (c.canal || "").toLowerCase() === "instagram" || (!c.canal && !c.ad_id.startsWith("google_")))
+    .filter((c) => (c.canal || "").toLowerCase() === "instagram" || (!c.canal && !String(c.ad_id || "").startsWith("google_")))
     .reduce((acc, c) => acc + (c.total_mensagens || 0), 0);
   const countFacebook = criativos
     .filter((c) => (c.canal || "").toLowerCase() === "facebook")
     .reduce((acc, c) => acc + (c.total_mensagens || 0), 0);
   const countGoogle = criativos
-    .filter((c) => (c.canal || "").toLowerCase() === "google" || c.ad_id.startsWith("google_"))
+    .filter((c) => (c.canal || "").toLowerCase() === "google" || String(c.ad_id || "").startsWith("google_"))
     .reduce((acc, c) => acc + (c.total_mensagens || 0), 0);
 
   const totalCanais = countInstagram + countFacebook + countGoogle;
@@ -456,6 +458,24 @@ export default function CriativosPage() {
             <p className="text-xs text-muted-foreground font-semibold">
               Calculando pontuação de saúde, SLA e engajamento dos criativos...
             </p>
+          </div>
+        ) : isError ? (
+          <div className="py-16 px-6 flex flex-col items-center justify-center space-y-3 bg-card border border-rose-500/30 rounded-2xl text-center">
+            <AlertTriangle className="w-8 h-8 text-rose-500" />
+            <p className="text-sm font-bold text-foreground">
+              Não foi possível carregar os relatórios de SLA agora
+            </p>
+            <p className="text-xs text-muted-foreground max-w-md">
+              O servidor demorou para responder ou retornou um erro temporário. Tente atualizar novamente.
+            </p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Tentar Novamente</span>
+            </button>
           </div>
         ) : (
           <>
@@ -1113,7 +1133,7 @@ export default function CriativosPage() {
                     ) : (
                       <div className="space-y-2.5">
                         {filteredCriativos.slice(0, 5).map((c, idx) => {
-                          const isGoogle = c.canal?.toLowerCase() === "google" || c.ad_id.startsWith("google_");
+                          const isGoogle = c.canal?.toLowerCase() === "google" || String(c.ad_id || "").startsWith("google_");
                           const link =
                             c.source_url ||
                             (!isGoogle && c.ad_id
@@ -1430,7 +1450,7 @@ export default function CriativosPage() {
                           </thead>
                           <tbody className="divide-y divide-border/60">
                             {filteredCriativos.map((c) => {
-                              const isGoogle = c.canal?.toLowerCase() === "google" || c.ad_id.startsWith("google_");
+                              const isGoogle = c.canal?.toLowerCase() === "google" || String(c.ad_id || "").startsWith("google_");
                               const link =
                                 c.source_url ||
                                 (!isGoogle && c.ad_id
@@ -1536,7 +1556,7 @@ export default function CriativosPage() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {filteredCriativos.map((c) => {
-                        const isGoogle = c.canal?.toLowerCase() === "google" || c.ad_id.startsWith("google_");
+                        const isGoogle = c.canal?.toLowerCase() === "google" || String(c.ad_id || "").startsWith("google_");
                         const link =
                           c.source_url ||
                           (!isGoogle && c.ad_id
